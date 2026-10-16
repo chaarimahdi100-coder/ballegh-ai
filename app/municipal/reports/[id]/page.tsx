@@ -37,7 +37,7 @@ export default function MunicipalReportReviewPage({
 }) {
   const { id } = use(params);
   const { t, language } = useI18n();
-  const { getReportById, updateHumanReview, sendOfficialEmail, activeUser } = useDemo();
+  const { getReportById, updateHumanReview, sendOfficialEmail, updateReportStatus, activeUser } = useDemo();
 
   const report = getReportById(id);
 
@@ -219,32 +219,90 @@ export default function MunicipalReportReviewPage({
 
             {/* Action Buttons */}
             <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={handleAccept}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-teal-600 hover:bg-brand-teal-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
-              >
-                <Check className="w-4 h-4" />
-                <span>{t("municipal.btnAcceptRecommendation")}</span>
-              </button>
+              {(report.status === "ai_analyzed" || report.status === "received") && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAccept}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-teal-600 hover:bg-brand-teal-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{t("municipal.btnAcceptRecommendation")}</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 p-2.5 text-xs font-semibold shadow-2xs transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>{t("municipal.btnModifyRecommendation")}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 p-2.5 text-xs font-semibold shadow-2xs transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>{t("municipal.btnModifyRecommendation")}</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleReject}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 p-2.5 text-xs font-semibold transition-colors dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                <span>{t("municipal.btnRejectReport")}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleReject}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 p-2.5 text-xs font-semibold transition-colors dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>{t("municipal.btnRejectReport")}</span>
+                  </button>
+                </>
+              )}
+
+              {report.status === "human_validated" && !report.officialEmailSent && (
+                <button
+                  type="button"
+                  onClick={() => setIsEmailModalOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Transmettre le courriel au service technique</span>
+                </button>
+              )}
+
+              {report.status === "forwarded" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateReportStatus(report.id, "in_progress", {
+                      fr: "Équipe technique dépêchée sur le terrain à Tunis.",
+                      ar: "تم توجيه الفريق الفني الميداني للموقع في تونس.",
+                    });
+                    setActionSuccessMessage("Intervention terrain marquée en cours.");
+                    setTimeout(() => setActionSuccessMessage(null), 3000);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Déclarer l'intervention terrain en cours</span>
+                </button>
+              )}
+
+              {report.status === "in_progress" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateReportStatus(report.id, "resolved", {
+                      fr: "Travaux terminés avec succès par le service municipal.",
+                      ar: "تم إنهاء الأشغال بنجاح من طرف المصلحة البلدية.",
+                    });
+                    setActionSuccessMessage("Dossier clôturé. Statut mis à jour à : Résolu.");
+                    setTimeout(() => setActionSuccessMessage(null), 3000);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Clôturer le signalement (Travaux achevés)</span>
+                </button>
+              )}
+
+              {report.status === "resolved" && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>Intervention clôturée avec succès</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -1,0 +1,210 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  CITIZEN
+  MUNICIPAL_AGENT
+  ADMIN
+}
+
+enum IssueCategory {
+  POTHOLE
+  LIGHTING
+  FLOODING
+}
+
+enum ReportStatus {
+  RECEIVED
+  AI_ANALYZED
+  HUMAN_VALIDATED
+  FORWARDED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum HumanDecisionType {
+  ACCEPTED
+  MODIFIED
+  REJECTED
+}
+
+enum TimelineAuthorRole {
+  CITIZEN
+  MUNICIPAL_AGENT
+  ADMIN
+  SYSTEM_AI
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  phone        String
+  role         UserRole  @default(CITIZEN)
+  district     String?
+  organization String?
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  submittedReports Report[]        @relation("CitizenReports")
+  humanReviews     HumanReview[]   @relation("AgentReviews")
+  timelineEvents   TimelineEvent[] @relation("UserTimelineEvents")
+
+  @@map("users")
+}
+
+model Report {
+  id                           String          @id @default(cuid())
+  referenceNumber              String          @unique
+  titleFr                      String
+  titleAr                      String
+  descriptionFr                String          @db.Text
+  descriptionAr                String          @db.Text
+  category                     IssueCategory
+  status                       ReportStatus    @default(RECEIVED)
+  urgency                      UrgencyLevel    @default(MEDIUM)
+  governorate                  String          @default("Tunis")
+  municipality                 String          @default("Commune de Tunis")
+  district                     String
+  streetAddress                String
+  latitude                     Float
+  longitude                    Float
+  landmark                     String?
+  officialEmailSent            Boolean         @default(false)
+  officialEmailSentAt          DateTime?
+  resolutionConfirmedByCitizen Boolean         @default(false)
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @updatedAt
+
+  submittedById String
+  submittedBy   User   @relation("CitizenReports", fields: [submittedById], references: [id])
+
+  duplicateClusterId String?
+  duplicateCluster   DuplicateCluster? @relation(fields: [duplicateClusterId], references: [id])
+
+  assignedServiceId String?
+  assignedService   MunicipalService? @relation(fields: [assignedServiceId], references: [id])
+
+  aiAnalysis  AIAnalysis?
+  humanReview HumanReview?
+  photos      ReportPhoto[]
+  timeline    TimelineEvent[]
+
+  @@index([category, status])
+  @@index([latitude, longitude])
+  @@map("reports")
+}
+
+model AIAnalysis {
+  id                     String        @id @default(cuid())
+  reportId               String        @unique
+  report                 Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  predictedCategory      IssueCategory
+  confidenceScore        Float
+  estimatedSeverity      Int           // 1 = Faible, 2 = Moyen, 3 = Critique
+  severityRationaleFr    String        @db.Text
+  severityRationaleAr    String        @db.Text
+  priorityScore          Int           // 0 à 100
+  baseSeverityWeight     Int           @default(35)
+  densityWeight          Int           @default(20)
+  sensitiveZoneProximity Boolean       @default(false)
+  agingWeight            Int           @default(10)
+  isLikelyDuplicate      Boolean       @default(false)
+  duplicateSimilarity    Float         @default(0.0)
+  duplicateExplanationFr String?       @db.Text
+  duplicateExplanationAr String?       @db.Text
+  suggestedServiceCode   String
+  draftEmailDept         String
+  draftEmailTo           String
+  draftEmailSubject      String
+  draftEmailBody         String        @db.Text
+  analyzedAt             DateTime      @default(now())
+
+  @@map("ai_analyses")
+}
+
+model HumanReview {
+  id               String            @id @default(cuid())
+  reportId         String            @unique
+  report           Report            @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reviewedById     String
+  reviewedBy       User              @relation("AgentReviews", fields: [reviewedById], references: [id])
+  decision         HumanDecisionType
+  decisionNotes    String?           @db.Text
+  adjustedCategory IssueCategory?
+  adjustedSeverity Int?
+  adjustedPriority Int?
+  reviewedAt       DateTime          @default(now())
+
+  @@map("human_reviews")
+}
+
+model TimelineEvent {
+  id         String             @id @default(cuid())
+  reportId   String
+  report     Report             @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?              @relation("UserTimelineEvents", fields: [authorId], references: [id])
+  authorName String
+  authorRole TimelineAuthorRole
+  status     ReportStatus
+  commentFr  String?            @db.Text
+  commentAr  String?            @db.Text
+  timestamp  DateTime           @default(now())
+
+  @@index([reportId, timestamp])
+  @@map("timeline_events")
+}
+
+model ReportPhoto {
+  id         String   @id @default(cuid())
+  reportId   String
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  url        String
+  caption    String?
+  uploadedAt DateTime @default(now())
+
+  @@map("report_photos")
+}
+
+model MunicipalService {
+  id             String        @id @default(cuid())
+  code           String        @unique // DVRD-TUNIS, DEP-ECL-TUNIS, DAEP-TUNIS
+  nameFr         String
+  nameAr         String
+  department     String
+  contactEmail   String
+  phone          String
+  headOfService  String
+  averageSlaDays Int           @default(3)
+  reports        Report[]
+
+  @@map("municipal_services")
+}
+
+model DuplicateCluster {
+  id              String   @id @default(cuid())
+  centerLatitude  Float
+  centerLongitude Float
+  radiusMeters    Float    @default(80.0)
+  createdAt       DateTime @default(now())
+  reports         Report[]
+
+  @@map("duplicate_clusters")
+}

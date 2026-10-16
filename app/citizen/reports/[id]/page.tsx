@@ -27,7 +27,7 @@ export default function CitizenReportDetailPage({
 }) {
   const { id } = use(params);
   const { t, language } = useI18n();
-  const { getReportById } = useDemo();
+  const { getReportById, confirmCitizenResolution } = useDemo();
 
   const report = getReportById(id);
 
@@ -131,6 +131,52 @@ export default function CitizenReportDetailPage({
           </div>
         )}
       </div>
+
+      {/* Citizen Resolution Confirmation Box */}
+      {report.status === "resolved" && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-xs dark:border-emerald-900/60 dark:bg-emerald-950/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 mt-0.5">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {report.resolutionConfirmedByCitizen
+                    ? language === "ar"
+                      ? "تم تأكيد حل المشكل من طرفكم بنجاح"
+                      : "Résolution confirmée par le citoyen"
+                    : language === "ar"
+                    ? "المصالح البلدية تشير إلى إتمام التدخل الميداني"
+                    : "Les équipes municipales indiquent avoir résolu l'incident"}
+                </h3>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  {report.resolutionConfirmedByCitizen
+                    ? language === "ar"
+                      ? "شكراً لمساهمتكم الفعالة في تحسين البنية التحتية لمدينة تونس."
+                      : "Merci pour votre civisme et votre contribution active à l'amélioration de la Ville de Tunis."
+                    : language === "ar"
+                    ? "هل تم إصلاح الخلل فعلياً على أرض الواقع؟ يرجى تأكيد الحل لغلق الملف نهائياً."
+                    : "Les travaux ont-ils bien été constatés sur place ? Veuillez confirmer la résolution pour clore définitivement le dossier."}
+                </p>
+              </div>
+            </div>
+
+            {!report.resolutionConfirmedByCitizen && (
+              <button
+                type="button"
+                onClick={() => confirmCitizenResolution(report.id)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-xs font-bold shadow-sm transition-colors shrink-0"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>
+                  {language === "ar" ? "نعم، أؤكد إصلاح المشكل" : "Confirmer la résolution"}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Progressive Timeline */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">

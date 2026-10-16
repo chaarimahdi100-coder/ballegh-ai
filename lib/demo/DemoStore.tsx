@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import type { Report, User, UserRole, IssueCategory } from "@/lib/types";
+import type { Report, User, UserRole, IssueCategory, ReportStatus } from "@/lib/types";
 import { INITIAL_DEMO_REPORTS } from "./reports";
 import { DEMO_USERS } from "./users";
 
@@ -29,6 +29,12 @@ interface DemoContextType {
     }
   ) => void;
   sendOfficialEmail: (reportId: string) => void;
+  updateReportStatus: (
+    reportId: string,
+    status: ReportStatus,
+    comment?: { fr: string; ar: string }
+  ) => void;
+  confirmCitizenResolution: (reportId: string) => void;
   resetDemoData: () => void;
 }
 
@@ -298,6 +304,63 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     saveReports(updated);
   };
 
+  const updateReportStatus = (
+    reportId: string,
+    status: ReportStatus,
+    comment?: { fr: string; ar: string }
+  ) => {
+    const updated = reports.map((r) => {
+      if (r.id !== reportId) return r;
+      const timelineEntry = {
+        id: `tl-stat-${Date.now()}`,
+        status,
+        timestamp: new Date().toISOString(),
+        author: activeUser.name,
+        authorRole: activeUser.role,
+        comment: comment || {
+          fr: `Statut mis à jour à : ${status}`,
+          ar: `تم تحديث الحالة إلى: ${status}`,
+        },
+      };
+
+      return {
+        ...r,
+        status,
+        updatedAt: new Date().toISOString(),
+        timeline: [...r.timeline, timelineEntry],
+      };
+    });
+
+    saveReports(updated);
+  };
+
+  const confirmCitizenResolution = (reportId: string) => {
+    const updated = reports.map((r) => {
+      if (r.id !== reportId) return r;
+      const timelineEntry = {
+        id: `tl-conf-${Date.now()}`,
+        status: "resolved" as const,
+        timestamp: new Date().toISOString(),
+        author: activeUser.name,
+        authorRole: "citizen" as const,
+        comment: {
+          fr: `Résolution sur le terrain confirmée par le citoyen.`,
+          ar: `تم تأكيد الإصلاح الفعلي على الميدان من طرف المواطن.`,
+        },
+      };
+
+      return {
+        ...r,
+        status: "resolved" as const,
+        resolutionConfirmedByCitizen: true,
+        updatedAt: new Date().toISOString(),
+        timeline: [...r.timeline, timelineEntry],
+      };
+    });
+
+    saveReports(updated);
+  };
+
   const resetDemoData = () => {
     localStorage.removeItem("ballegh_demo_reports");
     localStorage.removeItem("ballegh_active_role");
@@ -315,6 +378,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         createReport,
         updateHumanReview,
         sendOfficialEmail,
+        updateReportStatus,
+        confirmCitizenResolution,
         resetDemoData,
       }}
     >
