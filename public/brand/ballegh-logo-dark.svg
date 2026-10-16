@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="pinGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#02C39A" />
+      <stop offset="50%" stop-color="#00A896" />
+      <stop offset="100%" stop-color="#028090" />
+    </linearGradient>
+    <linearGradient id="waveGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5CE1E6" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#02C39A" stop-opacity="0.2" />
+    </linearGradient>
+    <filter id="subtleGlowDark" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#02C39A" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Symbol Mark (Left) -->
+  <g transform="translate(10, 10)">
+    <!-- Signal/Pulse civic radiating waves -->
+    <path d="M 52 14 A 34 34 0 0 1 76 50" stroke="url(#waveGradDark)" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M 58 6 A 44 44 0 0 1 88 50" stroke="url(#waveGradDark)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 4" fill="none" opacity="0.75" />
+
+    <!-- Civic Pin Base Body -->
+    <path d="M 40 8 C 22.3 8 8 22.3 8 40 C 8 58 35 77 38.5 79.4 C 39.4 80.1 40.6 80.1 41.5 79.4 C 45 77 72 58 72 40 C 72 22.3 57.7 8 40 8 Z" 
+          fill="url(#pinGradDark)" filter="url(#subtleGlowDark)"/>
+
+    <!-- Inner Core & Human Verification Checkmark -->
+    <circle cx="40" cy="38" r="19" fill="#0B132B" />
+    
+    <!-- Verified Action Checkmark + AI Node -->
+    <path d="M 31 38 L 37 44 L 49 32" stroke="#5CE1E6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    <circle cx="49" cy="32" r="2.5" fill="#FFFFFF" />
+  </g>
+
+  <!-- Typography / Brand Name -->
+  <text x="105" y="58" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="38" font-weight="800" letter-spacing="1.5" fill="#FFFFFF">
+    BALLEGH
+  </text>
+  
+  <g transform="translate(305, 27)">
+    <rect width="52" height="36" rx="8" fill="#02C39A" />
+    <text x="26" y="25" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="900" fill="#0B132B" text-anchor="middle" letter-spacing="0.5">
+      AI
+    </text>
+  </g>
+
+  <text x="106" y="80" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#A7F3D0" letter-spacing="0.5">
+    PLATEFORME CIVIQUE INTELIGENTE  •  تونس
+  </text>
+</svg>
