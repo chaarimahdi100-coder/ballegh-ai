@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || undefined;
     const myOnly = searchParams.get("myOnly") === "true";
 
-    const session = await getCurrentSession();
+    const session = await getCurrentSession(request);
 
     let submittedById: string | undefined = undefined;
 
@@ -47,7 +47,23 @@ export async function GET(request: Request) {
       submittedById,
     });
 
-    return NextResponse.json({ success: true, count: reports.length, reports });
+    const isStaff = session?.role === "municipal_agent" || session?.role === "admin";
+
+    // Protection de la vie privée : masquage des coordonnées des citoyens déclarants
+    const sanitizedReports = reports.map((r) => {
+      if (isStaff || (session && r.submittedBy.id === session.userId)) {
+        return r;
+      }
+      return {
+        ...r,
+        submittedBy: {
+          ...r.submittedBy,
+          phone: "+216 ** *** ***",
+        },
+      };
+    });
+
+    return NextResponse.json({ success: true, count: sanitizedReports.length, reports: sanitizedReports });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Impossible de récupérer les signalements", message: err.message },
@@ -58,7 +74,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getCurrentSession();
+    const session = await getCurrentSession(request);
 
     // Server-side authorization check: must be logged in
     if (!session) {

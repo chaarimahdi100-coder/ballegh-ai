@@ -13,7 +13,14 @@ import {
   advanceReportStatus,
   confirmCitizenResolution,
 } from "../lib/repositories/reportRepository";
-import { createSessionToken, verifySessionToken } from "../lib/auth/jwt";
+import { createSessionToken, verifySessionToken, SESSION_COOKIE_NAME } from "../lib/auth/jwt";
+import { analyzeReportTriage } from "../lib/services/aiService";
+import { dispatchOfficialEmail } from "../lib/services/emailService";
+
+// Route handlers for direct HTTP contract & security testing
+import { POST as demoSwitchHandler } from "../app/api/auth/demo-switch/route";
+import { GET as reportsGetHandler, POST as reportsPostHandler } from "../app/api/reports/route";
+import { GET as reportDetailGetHandler, PATCH as reportDetailPatchHandler } from "../app/api/reports/[id]/route";
 
 async function runTestSuite() {
   console.log("\n========================================================");
@@ -71,21 +78,46 @@ async function runTestSuite() {
   console.log("\n--- 2. Cryptographic Session Tokens (HS256) ---");
 
   let citizenToken = "";
+  let agentToken = "";
+  let adminToken = "";
+
   await test("Generates signed JWT session token for citizen", async () => {
     citizenToken = await createSessionToken({
-      userId: "usr_citizen_test",
+      userId: "usr_citizen_01",
       email: "citoyen@tunis.tn",
-      fullName: "Yassine Test",
+      fullName: "Yassine Ben Amor",
       role: "citizen",
       district: "Centre-Ville",
     });
     assert.ok(citizenToken.length > 20, "JWT token string should be non-empty");
   });
 
+  await test("Generates signed JWT session token for municipal agent", async () => {
+    agentToken = await createSessionToken({
+      userId: "usr_agent_01",
+      email: "agent@commune-tunis.gov.tn",
+      fullName: "Ing. Samira Trabelsi",
+      role: "municipal_agent",
+      district: "Direction de la Voirie",
+    });
+    assert.ok(agentToken.length > 20);
+  });
+
+  await test("Generates signed JWT session token for admin", async () => {
+    adminToken = await createSessionToken({
+      userId: "usr_admin_01",
+      email: "admin@commune-tunis.gov.tn",
+      fullName: "Karim Mansour",
+      role: "admin",
+      district: "DSI Tunis",
+    });
+    assert.ok(adminToken.length > 20);
+  });
+
   await test("Verifies and decodes valid JWT token", async () => {
     const payload = await verifySessionToken(citizenToken);
     assert.ok(payload, "Payload should be decoded");
-    assert.equal(payload?.userId, "usr_citizen_test");
+    assert.equal(payload?.userId, "usr_citizen_01");
     assert.equal(payload?.email, "citoyen@tunis.tn");
     assert.equal(payload?.role, "citizen");
   });
@@ -324,8 +356,184 @@ async function runTestSuite() {
     assert.ok(allUsers.some((u) => u.role === "citizen"));
   });
 
+  // ---------------------------------------------------------
+  // 9. SECURITY & PRIVILEGE ESCALATION REGRESSION TESTS
+  // ---------------------------------------------------------
+  console.log("\n--- 9. Security & Privilege Escalation Defenses ---");
+
+  await test("Rejects demo role switch when in production mode without explicit flag", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalAllow = process.env.ALLOW_DEMO_SWITCH;
+
+    try {
+      (process.env as any).NODE_ENV = "production";
+      delete process.env.ALLOW_DEMO_SWITCH;
+
+      const req = new Request("http://localhost:3000/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      });
+
+      const res = await demoSwitchHandler(req);
+      assert.equal(res.status, 403, "Must return 403 Forbidden in production");
+
+      const body = await res.json();
+      assert.equal(body.code, "DEMO_SWITCH_FORBIDDEN");
+    } finally {
+      (process.env as any).NODE_ENV = originalEnv;
+      if (originalAllow) process.env.ALLOW_DEMO_SWITCH = originalAllow;
+    }
+  });
+
+  // ---------------------------------------------------------
+  // 10. STRICT HUMAN-IN-THE-LOOP WORKFLOW ENFORCEMENT
+  // ---------------------------------------------------------
+  console.log("\n--- 10. Strict Human Validation Workflow Enforcement ---");
+
+  // Create fresh report in ai_analyzed state
+  const unreviewedReport = await createReport({
+    category: "pothole",
+    title: "Nid-de-poule test workflow",
+    description: "Trou profond sur chaussée.",
+    district: "Bab Souika",
+    streetAddress: "Rue Halfaouine",
+    submittedBy: {
+      id: "usr_citizen_01",
+      name: "Yassine Ben Amor",
+      phone: "+216 98 123 456",
+    },
+  });
+
+  await test("Forbids sending official email before human validation", async () => {
+    const req = new Request(`http://localhost:3000/api/reports/${unreviewedReport.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${SESSION_COOKIE_NAME}=${agentToken}`,
+      },
+      body: JSON.stringify({ action: "send_email" }),
+    });
+
+    const res = await reportDetailPatchHandler(req, {
+      params: Promise.resolve({ id: unreviewedReport.id }),
+    });
+
+    assert.equal(res.status, 422, "Must return 422 Unprocessable Entity when not human validated");
+    const data = await res.json();
+    assert.equal(data.code, "HUMAN_VALIDATION_REQUIRED");
+  });
+
+  await test("Forbids citizen resolution confirmation if report is not yet resolved", async () => {
+    const req = new Request(`http://localhost:3000/api/reports/${unreviewedReport.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${SESSION_COOKIE_NAME}=${citizenToken}`,
+      },
+      body: JSON.stringify({ action: "confirm_resolution" }),
+    });
+
+    const res = await reportDetailPatchHandler(req, {
+      params: Promise.resolve({ id: unreviewedReport.id }),
+    });
+
+    assert.equal(res.status, 422, "Must return 422 if report is not resolved");
+    const data = await res.json();
+    assert.equal(data.code, "NOT_YET_RESOLVED");
+  });
+
+  await test("Forbids citizen B from confirming resolution of citizen A's report", async () => {
+    // Generate token for a different citizen
+    const otherCitizenToken = await createSessionToken({
+      userId: "usr_other_citizen_99",
+      email: "intruder@civic.tn",
+      fullName: "Impostor User",
+      role: "citizen",
+    });
+
+    const req = new Request(`http://localhost:3000/api/reports/${createdReportId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${SESSION_COOKIE_NAME}=${otherCitizenToken}`,
+      },
+      body: JSON.stringify({ action: "confirm_resolution" }),
+    });
+
+    const res = await reportDetailPatchHandler(req, {
+      params: Promise.resolve({ id: createdReportId }),
+    });
+
+    assert.equal(res.status, 403, "Must return 403 Forbidden for non-author citizen");
+  });
+
+  // ---------------------------------------------------------
+  // 11. CITIZEN PRIVACY & PHONE NUMBER SANITIZATION
+  // ---------------------------------------------------------
+  console.log("\n--- 11. Citizen Privacy & Contact Data Protection ---");
+
+  await test("Redacts citizen phone number in GET /api/reports for non-staff viewers", async () => {
+    const otherCitizenToken = await createSessionToken({
+      userId: "usr_other_citizen_99",
+      email: "citizen2@civic.tn",
+      fullName: "Other Citizen",
+      role: "citizen",
+    });
+
+    const req = new Request("http://localhost:3000/api/reports", {
+      method: "GET",
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${otherCitizenToken}`,
+      },
+    });
+
+    const res = await reportsGetHandler(req);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+
+    const otherReport = data.reports.find((r: any) => r.submittedBy.id !== "usr_other_citizen_99");
+    assert.ok(otherReport, "Found a report submitted by someone else");
+    assert.match(otherReport.submittedBy.phone, /\*\*/, "Phone number must be masked");
+  });
+
+  // ---------------------------------------------------------
+  // 12. EXTERNAL INTEGRATION STATUS & SIMULATION TRANSPARENCY
+  // ---------------------------------------------------------
+  console.log("\n--- 12. Integration Status & Boundary Verification ---");
+
+  await test("AI Service clearly declares simulation mode when GEMINI_API_KEY is not configured", async () => {
+    const triage = await analyzeReportTriage({
+      category: "pothole",
+      title: "Test AI diagnostic",
+      description: "Nid-de-poule test.",
+      district: "Centre-Ville",
+      streetAddress: "Avenue de France",
+      referenceNumber: "BLG-TEST-001",
+    });
+
+    assert.equal(triage.metadata.isSimulated, true, "Must flag simulation when key is missing");
+    assert.equal(triage.metadata.configured, false);
+    assert.equal(triage.metadata.provider, "Ballegh Deterministic Taxonomy Classifier");
+  });
+
+  await test("Email Service clearly declares draft mode when SMTP/Resend is not configured", async () => {
+    const sampleReport = await getReportById(createdReportId);
+    assert.ok(sampleReport);
+
+    const dispatch = await dispatchOfficialEmail({
+      report: sampleReport!,
+      agentName: "Ing. Samira Bouazizi",
+      agentRole: "municipal_agent",
+    });
+
+    assert.equal(dispatch.isSimulated, true, "Must flag simulation when SMTP is not configured");
+    assert.equal(dispatch.transportStatus, "PENDING_SMTP_CONFIG");
+    assert.match(dispatch.notes, /Serveur SMTP non configuré/i);
+  });
+
   console.log("\n========================================================");
-  console.log(` ALL ${passedTests}/${totalTests} TESTS PASSED SUCCESSFULLY!`);
+  console.log(` ALL ${passedTests}/${totalTests} AUDIT TESTS PASSED SUCCESSFULLY!`);
   console.log("========================================================\n");
 }
 

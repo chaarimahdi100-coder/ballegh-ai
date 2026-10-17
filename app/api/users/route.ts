@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { listAllUsers } from "@/lib/repositories/userRepository";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const session = await getCurrentSession();
+    const session = await getCurrentSession(request);
 
     // Only Admin can list users
     if (!session || session.role !== "admin") {

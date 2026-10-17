@@ -8,6 +8,7 @@ export interface SessionPayload {
   role: UserRole;
   district?: string;
   organization?: string;
+  isDemo?: boolean;
 }
 
 const DEFAULT_SECRET = "ballegh-ai-tunis-civic-secret-key-minimum-32-chars-2026-secure";
@@ -44,6 +45,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       role: payload.role as UserRole,
       district: payload.district as string | undefined,
       organization: payload.organization as string | undefined,
+      isDemo: Boolean(payload.isDemo),
     };
   } catch {
     return null;

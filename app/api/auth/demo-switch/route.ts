@@ -10,6 +10,20 @@ const demoSwitchSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // 1. Protection contre l'escalade de privilèges en environnement de production
+    const isProduction = process.env.NODE_ENV === "production";
+    const allowDemo = process.env.ALLOW_DEMO_SWITCH === "true";
+
+    if (isProduction && !allowDemo) {
+      return NextResponse.json(
+        {
+          error: "Action refusée. Le basculement de compte démo est strictement désactivé en production.",
+          code: "DEMO_SWITCH_FORBIDDEN",
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = demoSwitchSchema.safeParse(body);
 
@@ -27,6 +41,7 @@ export async function POST(request: Request) {
       role: user.role,
       district: user.district,
       organization: user.organization,
+      isDemo: true,
     });
 
     const response = NextResponse.json({

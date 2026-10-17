@@ -1,5 +1,6 @@
 import { prisma, isDatabaseConfigured } from "@/lib/db";
 import { INITIAL_DEMO_REPORTS } from "@/lib/demo/reports";
+import { analyzeReportTriage } from "@/lib/services/aiService";
 import type {
   Report,
   IssueCategory,
@@ -137,39 +138,16 @@ export async function createReport(data: {
   const lat = data.latitude || 36.8065;
   const lng = data.longitude || 10.1815;
 
-  // AI Triage calculation based on domain specs
-  const categoryConfig = {
-    pothole: {
-      conf: 0.94,
-      sev: 2 as SeverityLevel,
-      priority: 76,
-      dept: "Direction de la Voirie et des Réseaux Divers",
-      email: "voirie.technique@commune-tunis.gov.tn",
-      code: "DVRD-TUNIS",
-      rationaleFr: "Dégradation de surface sur voie carrossable nécessitant rebouchage.",
-      rationaleAr: "اهتراء سطحي بمسار السير يتطلب التدخل للترميم.",
-    },
-    lighting: {
-      conf: 0.91,
-      sev: 2 as SeverityLevel,
-      priority: 70,
-      dept: "Division Éclairage Public et Énergie",
-      email: "eclairage.public@commune-tunis.gov.tn",
-      code: "DEP-ECL-TUNIS",
-      rationaleFr: "Panne d'éclairage nocturne signalée par photo.",
-      rationaleAr: "عطب إنارة ليلية مؤكد بالصورة المرفقة.",
-    },
-    flooding: {
-      conf: 0.96,
-      sev: 3 as SeverityLevel,
-      priority: 91,
-      dept: "Direction de l'Assainissement et des Eaux Pluviales",
-      email: "eaux.pluviales@commune-tunis.gov.tn",
-      code: "DAEP-TUNIS",
-      rationaleFr: "Accumulation critique d'eau de pluie et risque de saturation de voirie.",
-      rationaleAr: "تراكم مياه أمطار مع خطر انسداد قنوات التصريف في المنطقة.",
-    },
-  }[data.category];
+  // Diagnostic IA via le service dédié (marqué simulation tant que GEMINI_API_KEY est absent)
+  const aiTriage = await analyzeReportTriage({
+    category: data.category,
+    title: data.title,
+    description: data.description,
+    district: data.district,
+    streetAddress: data.streetAddress,
+    referenceNumber: refNum,
+    photoUrl: data.photoUrl,
+  });
 
   const now = new Date().toISOString();
 
@@ -180,7 +158,7 @@ export async function createReport(data: {
     description: { fr: data.description, ar: data.description },
     category: data.category,
     status: "ai_analyzed",
-    urgency: categoryConfig.sev === 3 ? "critical" : "high",
+    urgency: aiTriage.estimatedSeverity === 3 ? "critical" : "high",
     officialEmailSent: false,
     resolutionConfirmedByCitizen: false,
     createdAt: now,
@@ -214,36 +192,15 @@ export async function createReport(data: {
       isAnonymous: false,
     },
     aiAnalysis: {
-      predictedCategory: data.category,
-      confidenceScore: categoryConfig.conf,
-      estimatedSeverity: categoryConfig.sev,
-      severityRationale: {
-        fr: categoryConfig.rationaleFr,
-        ar: categoryConfig.rationaleAr,
-      },
-      priorityScore: categoryConfig.priority,
-      priorityFactors: {
-        baseSeverityWeight: 35,
-        densityWeight: 20,
-        sensitiveZoneProximity: true,
-        agingWeight: 10,
-      },
-      duplicateDetection: {
-        isLikelyDuplicate: false,
-        similarityScore: 0.1,
-        relatedReportIds: [],
-        explanation: {
-          fr: "Analyse spatio-temporelle : aucun signalement identique dans un rayon de 80 mètres.",
-          ar: "تحليل مكاني وزمني: لا يوجد بلاغ مطابق في محيط 80 متراً.",
-        },
-      },
-      suggestedServiceCode: categoryConfig.code,
-      generatedEmailDraft: {
-        recipientDepartment: categoryConfig.dept,
-        recipientEmail: categoryConfig.email,
-        subject: `[${data.category.toUpperCase()} - ${refNum}] Nouveau signalement à valider - ${data.district}`,
-        body: `Signalement ${refNum} enregistré à ${data.streetAddress}, ${data.district}.\n\nDescription citoyenne : "${data.description}"\n\nDiagnostic IA : Gravité ${categoryConfig.sev}/3, Priorité ${categoryConfig.priority}/100.`,
-      },
+      predictedCategory: aiTriage.predictedCategory,
+      confidenceScore: aiTriage.confidenceScore,
+      estimatedSeverity: aiTriage.estimatedSeverity,
+      severityRationale: aiTriage.severityRationale,
+      priorityScore: aiTriage.priorityScore,
+      priorityFactors: aiTriage.priorityFactors,
+      duplicateDetection: aiTriage.duplicateDetection,
+      suggestedServiceCode: aiTriage.suggestedServiceCode,
+      generatedEmailDraft: aiTriage.generatedEmailDraft,
     },
     timeline: [
       {
@@ -264,8 +221,8 @@ export async function createReport(data: {
         author: "Ballegh AI Engine v1.2",
         authorRole: "system_ai",
         comment: {
-          fr: `Diagnostic IA préliminaire (${Math.round(categoryConfig.conf * 100)}% certitude). Transmis à l'agent municipal.`,
-          ar: `تشخيص تمهيدي للذكاء الاصطناعي (نسبة يقين ${Math.round(categoryConfig.conf * 100)}%). أحيل لعون البلدية.`,
+          fr: `Diagnostic IA préliminaire (${Math.round(aiTriage.confidenceScore * 100)}% certitude). Transmis à l'agent municipal.`,
+          ar: `تشخيص تمهيدي للذكاء الاصطناعي (نسبة يقين ${Math.round(aiTriage.confidenceScore * 100)}%). أحيل لعون البلدية.`,
         },
       },
     ],
@@ -300,14 +257,14 @@ export async function createReport(data: {
           aiAnalysis: {
             create: {
               predictedCategory: data.category.toUpperCase() as "POTHOLE" | "LIGHTING" | "FLOODING",
-              confidenceScore: categoryConfig.conf,
-              estimatedSeverity: categoryConfig.sev,
-              severityRationaleFr: categoryConfig.rationaleFr,
-              severityRationaleAr: categoryConfig.rationaleAr,
-              priorityScore: categoryConfig.priority,
-              suggestedServiceCode: categoryConfig.code,
-              draftEmailDept: categoryConfig.dept,
-              draftEmailTo: categoryConfig.email,
+              confidenceScore: aiTriage.confidenceScore,
+              estimatedSeverity: aiTriage.estimatedSeverity,
+              severityRationaleFr: aiTriage.severityRationale.fr,
+              severityRationaleAr: aiTriage.severityRationale.ar,
+              priorityScore: aiTriage.priorityScore,
+              suggestedServiceCode: aiTriage.suggestedServiceCode,
+              draftEmailDept: aiTriage.generatedEmailDraft.recipientDepartment,
+              draftEmailTo: aiTriage.generatedEmailDraft.recipientEmail,
               draftEmailSubject: newReport.aiAnalysis.generatedEmailDraft.subject,
               draftEmailBody: newReport.aiAnalysis.generatedEmailDraft.body,
             },
@@ -325,8 +282,8 @@ export async function createReport(data: {
                 authorName: "Ballegh AI Engine v1.2",
                 authorRole: "SYSTEM_AI",
                 status: "AI_ANALYZED",
-                commentFr: `Diagnostic IA préliminaire (${Math.round(categoryConfig.conf * 100)}% certitude). Transmis à l'agent municipal.`,
-                commentAr: `تشخيص تمهيدي للذكاء الاصطناعي (نسبة يقين ${Math.round(categoryConfig.conf * 100)}%). أحيل لعون البلدية.`,
+                commentFr: `Diagnostic IA préliminaire (${Math.round(aiTriage.confidenceScore * 100)}% certitude). Transmis à l'agent municipal.`,
+                commentAr: `تشخيص تمهيدي للذكاء الاصطناعي (نسبة يقين ${Math.round(aiTriage.confidenceScore * 100)}%). أحيل لعون البلدية.`,
               },
             ],
           },

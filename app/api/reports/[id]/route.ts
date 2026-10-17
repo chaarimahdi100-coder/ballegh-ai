@@ -7,7 +7,8 @@ import {
   advanceReportStatus,
   confirmCitizenResolution,
 } from "@/lib/repositories/reportRepository";
-import type { IssueCategory, SeverityLevel, HumanDecision, ReportStatus } from "@/lib/types";
+import { dispatchOfficialEmail } from "@/lib/services/emailService";
+import type { HumanDecision, ReportStatus } from "@/lib/types";
 
 const patchActionSchema = z.discriminatedUnion("action", [
   z.object({
@@ -24,6 +25,8 @@ const patchActionSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("send_email"),
+    customSubject: z.string().optional(),
+    customBody: z.string().optional(),
   }),
   z.object({
     action: z.literal("advance_status"),
@@ -52,7 +55,22 @@ export async function GET(
       return NextResponse.json({ error: "Signalement non trouvé" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, report });
+    const session = await getCurrentSession(request);
+    const isStaff = session?.role === "municipal_agent" || session?.role === "admin";
+    const isAuthor = session?.userId === report.submittedBy.id;
+
+    // Protection de la vie privée : masquage des coordonnées pour les tiers
+    const sanitizedReport = isStaff || isAuthor
+      ? report
+      : {
+          ...report,
+          submittedBy: {
+            ...report.submittedBy,
+            phone: "+216 ** *** ***",
+          },
+        };
+
+    return NextResponse.json({ success: true, report: sanitizedReport });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Erreur lors de la récupération du signalement", message: err.message },
@@ -67,7 +85,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const session = await getCurrentSession();
+    const session = await getCurrentSession(request);
 
     if (!session) {
       return NextResponse.json(
@@ -122,17 +140,41 @@ export async function PATCH(
         );
       }
 
+      // Règle métier stricte : validation humaine explicite obligatoire préalable
+      if (report.status !== "human_validated" && report.status !== "forwarded") {
+        return NextResponse.json(
+          {
+            error: "Transmission officielle impossible : ce dossier requiert une validation humaine préalable par l'agent municipal.",
+            code: "HUMAN_VALIDATION_REQUIRED",
+          },
+          { status: 422 }
+        );
+      }
+
+      // Appel du service d'expédition officiel (avec marquage explicite du transport)
+      const dispatchResult = await dispatchOfficialEmail({
+        report,
+        agentName: session.fullName,
+        agentRole: session.role,
+        customSubject: data.customSubject,
+        customBody: data.customBody,
+      });
+
       const updated = await advanceReportStatus(
         id,
         { id: session.userId, name: session.fullName, role: session.role },
         "forwarded",
         {
-          fr: "Courriel officiel validé et transmis au service technique référent.",
-          ar: "تمت المصادقة على المراسلة الرسمية وتوجيهها للمصلحة الفنية المعنية.",
+          fr: dispatchResult.notes,
+          ar: `تمت المصادقة على المراسلة الرسمية وإحالتها للمصلحة الفنية المعنية. (${dispatchResult.transportStatus})`,
         }
       );
 
-      return NextResponse.json({ success: true, report: updated });
+      return NextResponse.json({
+        success: true,
+        report: updated,
+        dispatch: dispatchResult,
+      });
     }
 
     // 3. Advance Status (In progress / Resolved)
@@ -141,6 +183,13 @@ export async function PATCH(
         return NextResponse.json(
           { error: "Action réservée aux agents municipaux habilités et administrateurs" },
           { status: 403 }
+        );
+      }
+
+      if (report.status === "rejected") {
+        return NextResponse.json(
+          { error: "Impossible de modifier le statut d'un signalement rejeté.", code: "REPORT_REJECTED" },
+          { status: 422 }
         );
       }
 
@@ -156,11 +205,22 @@ export async function PATCH(
 
     // 4. Confirm Citizen Resolution
     if (data.action === "confirm_resolution") {
-      // Must be the citizen who submitted or an admin
-      if (session.role === "citizen" && report.submittedBy.id !== session.userId) {
+      // Seul le citoyen auteur du signalement (ou l'administrateur système) peut confirmer
+      if (session.role !== "admin" && (session.role !== "citizen" || report.submittedBy.id !== session.userId)) {
         return NextResponse.json(
-          { error: "Seul l'auteur du signalement peut confirmer sa résolution sur le terrain" },
+          { error: "Seul le citoyen auteur du signalement peut confirmer sa résolution sur le terrain" },
           { status: 403 }
+        );
+      }
+
+      // Le rapport doit être préalablement résolu par la municipalité
+      if (report.status !== "resolved") {
+        return NextResponse.json(
+          {
+            error: "La confirmation citoyenne requiert que l'intervention municipale ait préalablement été déclarée résolue.",
+            code: "NOT_YET_RESOLVED",
+          },
+          { status: 422 }
         );
       }
 
