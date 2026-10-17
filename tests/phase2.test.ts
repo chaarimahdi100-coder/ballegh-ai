@@ -1,4 +1,33 @@
 import assert from "node:assert/strict";
+import * as path from "node:path";
+import * as fs from "node:fs";
+
+// Load .env.local natively for test suite execution
+function loadEnvLocal(): void {
+  const envLocalPath = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envLocalPath)) {
+    const content = fs.readFileSync(envLocalPath, "utf-8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        process.env[key] = val;
+      }
+    }
+  }
+}
+
+loadEnvLocal();
+const realDatabaseUrl = process.env.DATABASE_URL;
+// Isolate unit/RBAC tests from mutating the production Supabase database
+delete process.env.DATABASE_URL;
+
 import {
   authenticateUser,
   registerUser,
@@ -16,6 +45,7 @@ import {
 import { createSessionToken, verifySessionToken, SESSION_COOKIE_NAME } from "../lib/auth/jwt";
 import { analyzeReportTriage } from "../lib/services/aiService";
 import { dispatchOfficialEmail } from "../lib/services/emailService";
+import { inspectDatabaseConnection, testReportPersistence } from "../scripts/test-db-connection";
 
 // Route handlers for direct HTTP contract & security testing
 import { POST as demoSwitchHandler } from "../app/api/auth/demo-switch/route";
@@ -530,6 +560,28 @@ async function runTestSuite() {
     assert.equal(dispatch.isSimulated, true, "Must flag simulation when SMTP is not configured");
     assert.equal(dispatch.transportStatus, "PENDING_SMTP_CONFIG");
     assert.match(dispatch.notes, /Serveur SMTP non configuré/i);
+  });
+
+  console.log("\n--- 13. Supabase PostgreSQL Integration & CRUD Persistence ---");
+  await test("Connects to real Supabase PostgreSQL and verifies migrations", async () => {
+    process.env.DATABASE_URL = realDatabaseUrl;
+    const inspection = await inspectDatabaseConnection();
+    assert.equal(inspection.connected, true, "Must successfully connect to Supabase PostgreSQL: " + inspection.error);
+    assert.ok(inspection.existingTables?.includes("reports"), "Table 'reports' must exist");
+    assert.ok(inspection.existingTables?.includes("users"), "Table 'users' must exist");
+    assert.ok(inspection.existingTables?.includes("municipal_services"), "Table 'municipal_services' must exist");
+    assert.ok(inspection.existingTables?.includes("human_reviews"), "Table 'human_reviews' must exist");
+    assert.ok(inspection.migrationsApplied && inspection.migrationsApplied.length > 0, "At least one migration must be recorded");
+  });
+
+  await test("Executes isolated report CRUD persistence and cleans up test record in Supabase", async () => {
+    process.env.DATABASE_URL = realDatabaseUrl;
+    const result = await testReportPersistence();
+    assert.equal(result.success, true, "All persistence checks must pass: " + result.error);
+    assert.equal(result.created, true, "Must successfully create record in Supabase");
+    assert.equal(result.readBack, true, "Must successfully read back record from Supabase");
+    assert.equal(result.updated, true, "Must successfully update record in Supabase");
+    assert.equal(result.cleanedUp, true, "Must clean up test record from Supabase");
   });
 
   console.log("\n========================================================");
