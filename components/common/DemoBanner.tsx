@@ -20,10 +20,20 @@ export function DemoBanner() {
     { role: "admin", labelFr: "Administrateur (Karim)", labelAr: "مدير المنظومة (كريم)", path: "/admin/dashboard" },
   ];
 
-  const handleSelectRole = (r: (typeof roles)[0]) => {
+  const handleSelectRole = async (r: (typeof roles)[0]) => {
     setActiveRole(r.role);
     setIsOpen(false);
+    try {
+      await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: r.role }),
+      });
+    } catch {
+      // fallback
+    }
     router.push(r.path);
+    router.refresh();
   };
 
   return (

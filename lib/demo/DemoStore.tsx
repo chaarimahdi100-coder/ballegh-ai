@@ -58,6 +58,34 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const found = DEMO_USERS.find((u) => u.role === savedRole);
       if (found) setActiveUser(found);
     }
+
+    async function syncWithServer() {
+      try {
+        const [repRes, meRes] = await Promise.allSettled([
+          fetch("/api/reports"),
+          fetch("/api/auth/me"),
+        ]);
+
+        if (repRes.status === "fulfilled" && repRes.value.ok) {
+          const repData = await repRes.value.json();
+          if (repData.reports && Array.isArray(repData.reports) && repData.reports.length > 0) {
+            setReports(repData.reports);
+            localStorage.setItem("ballegh_demo_reports", JSON.stringify(repData.reports));
+          }
+        }
+
+        if (meRes.status === "fulfilled" && meRes.value.ok) {
+          const meData = await meRes.value.json();
+          if (meData.user) {
+            setActiveUser(meData.user);
+          }
+        }
+      } catch {
+        // network or server offline, keep local state
+      }
+    }
+
+    syncWithServer();
   }, []);
 
   const saveReports = (newReports: Report[]) => {
@@ -69,6 +97,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     const found = DEMO_USERS.find((u) => u.role === role) || DEMO_USERS[0];
     setActiveUser(found);
     localStorage.setItem("ballegh_active_role", role);
+    fetch("/api/auth/demo-switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    }).catch(() => {});
   };
 
   const getReportById = (id: string) => {
@@ -227,6 +260,24 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [newReport, ...reports];
     saveReports(updated);
+
+    // Persist to server API
+    fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: newId,
+        category: data.category,
+        title: data.title,
+        description: data.description,
+        district: data.district,
+        streetAddress: data.streetAddress,
+        photoUrl: data.photoUrl,
+      }),
+    }).catch(() => {
+      // offline fallback
+    });
+
     return newId;
   };
 
@@ -275,6 +326,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     });
 
     saveReports(updated);
+
+    // Persist to server API
+    fetch(`/api/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "human_review",
+        decision,
+        notes,
+        modifications,
+      }),
+    }).catch(() => {});
   };
 
   const sendOfficialEmail = (reportId: string) => {
@@ -302,6 +365,15 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     });
 
     saveReports(updated);
+
+    // Persist to server API
+    fetch(`/api/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "send_email",
+      }),
+    }).catch(() => {});
   };
 
   const updateReportStatus = (
@@ -332,6 +404,17 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     });
 
     saveReports(updated);
+
+    // Persist to server API
+    fetch(`/api/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "advance_status",
+        status,
+        comment,
+      }),
+    }).catch(() => {});
   };
 
   const confirmCitizenResolution = (reportId: string) => {
@@ -359,6 +442,15 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     });
 
     saveReports(updated);
+
+    // Persist to server API
+    fetch(`/api/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "confirm_resolution",
+      }),
+    }).catch(() => {});
   };
 
   const resetDemoData = () => {
@@ -366,6 +458,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("ballegh_active_role");
     setReports(INITIAL_DEMO_REPORTS);
     setActiveUser(DEMO_USERS[0]);
+    fetch("/api/auth/demo-switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "citizen" }),
+    }).catch(() => {});
   };
 
   return (

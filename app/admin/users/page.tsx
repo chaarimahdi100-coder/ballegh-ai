@@ -50,6 +50,23 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
+  React.useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch("/api/users");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.users && Array.isArray(data.users) && data.users.length > 0) {
+            setUsers(data.users);
+          }
+        }
+      } catch {
+        // fallback to default list
+      }
+    }
+    fetchUsers();
+  }, []);
+
   const filtered = users.filter((u) => {
     const matchSearch =
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
 import { Logo } from "@/components/brand/Logo";
 import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
-import { UserPlus, ArrowRight } from "lucide-react";
+import { UserPlus, AlertCircle, Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
   const { t, language } = useI18n();
@@ -19,6 +19,8 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [district, setDistrict] = useState("Bab Souika");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const tunisDistricts = [
     "Bab Souika",
@@ -33,10 +35,49 @@ export default function RegisterPage() {
     "El Kram",
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setActiveRole("citizen");
-    router.push("/citizen/dashboard");
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+          district,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrorMessage(
+          data.error ||
+            (language === "ar"
+              ? "تعذر تسجيل الحساب، يرجى التحقق من صحة المعطيات"
+              : "Erreur lors de la création du compte.")
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setActiveRole("citizen");
+      router.push("/citizen/dashboard");
+      router.refresh();
+    } catch {
+      setErrorMessage(
+        language === "ar"
+          ? "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً"
+          : "Erreur réseau lors de la création du compte."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,6 +96,13 @@ export default function RegisterPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 sm:px-10">
+          {errorMessage && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -131,9 +179,10 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-brand-teal-600 py-2.5 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-teal-700 focus:outline-none focus:ring-2 focus:ring-brand-teal-500 transition-colors mt-2"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-brand-teal-600 py-2.5 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-teal-700 focus:outline-none focus:ring-2 focus:ring-brand-teal-500 transition-colors mt-2 disabled:opacity-60"
             >
-              <UserPlus className="w-4 h-4" />
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
               <span>{t("auth.signUpBtn")}</span>
             </button>
           </form>
