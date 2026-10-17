@@ -1,12 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
 import { KPICard } from "@/components/common/KPICard";
 import { DEMO_USERS } from "@/lib/demo/users";
 import { MUNICIPAL_SERVICES } from "@/lib/demo/services";
+import type { User } from "@/lib/types";
 import {
   Users,
   Shield,
@@ -18,11 +19,56 @@ import {
   CheckCircle2,
   Server,
   Layers,
+  Loader2,
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const { t } = useI18n();
   const { reports } = useDemo();
+
+  const [users, setUsers] = useState<User[]>(DEMO_USERS);
+  const [servicesCount, setServicesCount] = useState<number>(MUNICIPAL_SERVICES.length);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [usersRes, servicesRes] = await Promise.allSettled([
+          fetch("/api/users"),
+          fetch("/api/services"),
+        ]);
+
+        if (usersRes.status === "fulfilled" && usersRes.value.ok) {
+          const uData = await usersRes.value.json();
+          if (uData.users && Array.isArray(uData.users) && isMounted) {
+            setUsers(uData.users);
+          }
+        }
+
+        if (servicesRes.status === "fulfilled" && servicesRes.value.ok) {
+          const sData = await servicesRes.value.json();
+          if (sData.services && Array.isArray(sData.services) && isMounted) {
+            setServicesCount(sData.services.length);
+          }
+        }
+      } catch (err: any) {
+        console.warn("[AdminDashboard] Error loading live metrics:", err.message);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const totalUsers = users.length;
+  const citizensCount = users.filter((u) => u.role === "citizen").length;
+  const agentsCount = users.filter((u) => u.role === "municipal_agent").length;
 
   return (
     <div className="space-y-8">
@@ -59,28 +105,28 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title={t("admin.kpiTotalUsers")}
-          value={DEMO_USERS.length + 142}
+          value={totalUsers}
           subtitle="Comptes enregistrés"
           icon={Users}
           colorScheme="navy"
         />
         <KPICard
           title={t("admin.kpiCitizens")}
-          value="128"
-          subtitle="Citoyens actifs ce mois"
+          value={citizensCount}
+          subtitle="Citoyens enregistrés"
           icon={CheckCircle2}
           colorScheme="teal"
         />
         <KPICard
           title={t("admin.kpiAgents")}
-          value="14"
+          value={agentsCount}
           subtitle="Régulateurs municipaux"
           icon={Building2}
           colorScheme="amber"
         />
         <KPICard
           title={t("admin.kpiRoutingServices")}
-          value={MUNICIPAL_SERVICES.length}
+          value={servicesCount}
           subtitle="Directions techniques connectées"
           icon={Server}
           colorScheme="emerald"

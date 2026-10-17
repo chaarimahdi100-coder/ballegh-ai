@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useI18n } from "@/lib/i18n/I18nContext";
@@ -12,7 +12,7 @@ import { AIReviewCard } from "@/components/municipal/AIReviewCard";
 import { EmailDraftModal } from "@/components/municipal/EmailDraftModal";
 import { StatusTimeline } from "@/components/citizen/StatusTimeline";
 import { formatDate } from "@/lib/utils";
-import type { IssueCategory, SeverityLevel } from "@/lib/types";
+import type { IssueCategory, SeverityLevel, Report, ReportStatus } from "@/lib/types";
 import {
   ArrowLeft,
   Check,
@@ -27,6 +27,8 @@ import {
   Building2,
   Clock,
   Layers,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,25 +39,69 @@ export default function MunicipalReportReviewPage({
 }) {
   const { id } = use(params);
   const { t, language } = useI18n();
-  const { getReportById, updateHumanReview, sendOfficialEmail, updateReportStatus, activeUser } = useDemo();
+  const { fetchReportById, getReportById, updateHumanReview, sendOfficialEmail, updateReportStatus, activeUser } = useDemo();
 
-  const report = getReportById(id);
+  const [report, setReport] = useState<Report | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editedCategory, setEditedCategory] = useState<IssueCategory>(
-    report ? report.category : "pothole"
-  );
-  const [editedSeverity, setEditedSeverity] = useState<SeverityLevel>(
-    report ? report.aiAnalysis.estimatedSeverity : 2
-  );
+  const [editedCategory, setEditedCategory] = useState<IssueCategory>("pothole");
+  const [editedSeverity, setEditedSeverity] = useState<SeverityLevel>(2);
   const [decisionNotes, setDecisionNotes] = useState("");
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
-  if (!report) {
+  useEffect(() => {
+    let isMounted = true;
+    async function loadReport() {
+      setIsLoading(true);
+      try {
+        const found = await fetchReportById(id);
+        if (isMounted) {
+          if (found) {
+            setReport(found);
+            setEditedCategory(found.category);
+            setEditedSeverity(found.aiAnalysis?.estimatedSeverity ?? 2);
+          } else {
+            const cached = getReportById(id);
+            if (cached) {
+              setReport(cached);
+              setEditedCategory(cached.category);
+              setEditedSeverity(cached.aiAnalysis?.estimatedSeverity ?? 2);
+            } else {
+              setFetchError("Dossier introuvable");
+            }
+          }
+        }
+      } catch (err: any) {
+        if (isMounted) setFetchError("Erreur lors du chargement du dossier");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadReport();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, fetchReportById, getReportById]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-teal-600 mb-2" />
+        <p className="text-sm font-medium">Chargement du dossier municipal...</p>
+      </div>
+    );
+  }
+
+  if (fetchError || !report) {
     return (
       <div className="text-center py-16">
-        <h2 className="text-xl font-bold">Dossier introuvable</h2>
+        <h2 className="text-xl font-bold">{fetchError || "Dossier introuvable"}</h2>
         <Link href="/municipal/reports" className="mt-4 inline-block text-brand-teal-600 font-semibold">
           Retour à la file des signalements
         </Link>
@@ -63,29 +109,75 @@ export default function MunicipalReportReviewPage({
     );
   }
 
-  const handleAccept = () => {
-    updateHumanReview(report.id, "accepted", "Validation conforme aux recommandations du modèle IA.");
-    setActionSuccessMessage("Recommandation acceptée. Dossier validé pour transmission.");
-    setTimeout(() => setActionSuccessMessage(null), 4000);
-  };
-
-  const handleReject = () => {
-    if (confirm("Confirmer le rejet de ce signalement ?")) {
-      updateHumanReview(report.id, "rejected", "Signalement jugé non recevable ou hors périmètre municipal.");
-      setActionSuccessMessage("Signalement rejeté.");
+  const handleAccept = async () => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const updated = await updateHumanReview(report.id, "accepted", "Validation conforme aux recommandations du modèle IA.");
+      if (updated) setReport(updated);
+      setActionSuccessMessage("Recommandation acceptée. Dossier validé pour transmission.");
       setTimeout(() => setActionSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Erreur lors de la validation");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleSaveModification = (e: React.FormEvent) => {
+  const handleReject = async () => {
+    if (confirm("Confirmer le rejet de ce signalement ?")) {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+      try {
+        const updated = await updateHumanReview(report.id, "rejected", "Signalement jugé non recevable ou hors périmètre municipal.");
+        if (updated) setReport(updated);
+        setActionSuccessMessage("Signalement rejeté.");
+        setTimeout(() => setActionSuccessMessage(null), 4000);
+      } catch (err: any) {
+        setErrorMessage(err.message || "Erreur lors du rejet");
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleSaveModification = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateHumanReview(report.id, "modified", decisionNotes, {
-      category: editedCategory,
-      severity: editedSeverity,
-    });
-    setIsEditModalOpen(false);
-    setActionSuccessMessage("Diagnostic modifié manuellement et validé.");
-    setTimeout(() => setActionSuccessMessage(null), 4000);
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const updated = await updateHumanReview(report.id, "modified", decisionNotes, {
+        category: editedCategory,
+        severity: editedSeverity,
+      });
+      if (updated) setReport(updated);
+      setIsEditModalOpen(false);
+      setActionSuccessMessage("Diagnostic modifié manuellement et validé.");
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Erreur lors de la modification");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStatusTransition = async (
+    newStatus: ReportStatus,
+    comment: { fr: string; ar: string },
+    successMsg: string
+  ) => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const updated = await updateReportStatus(report.id, newStatus, comment);
+      if (updated) setReport(updated);
+      setActionSuccessMessage(successMsg);
+      setTimeout(() => setActionSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Erreur lors du changement de statut");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -119,6 +211,13 @@ export default function MunicipalReportReviewPage({
         <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-300">
           <Check className="w-4 h-4" />
           <span>{actionSuccessMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-800 dark:bg-rose-950 dark:border-rose-800 dark:text-rose-300">
+          <AlertCircle className="w-4 h-4" />
+          <span>{errorMessage}</span>
         </div>
       )}
 
@@ -224,16 +323,18 @@ export default function MunicipalReportReviewPage({
                   <button
                     type="button"
                     onClick={handleAccept}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-teal-600 hover:bg-brand-teal-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-teal-600 hover:bg-brand-teal-700 disabled:opacity-50 text-white p-3 text-xs font-bold shadow-sm transition-colors"
                   >
-                    <Check className="w-4 h-4" />
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     <span>{t("municipal.btnAcceptRecommendation")}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 p-2.5 text-xs font-semibold shadow-2xs transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 p-2.5 text-xs font-semibold shadow-2xs transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>{t("municipal.btnModifyRecommendation")}</span>
@@ -242,7 +343,8 @@ export default function MunicipalReportReviewPage({
                   <button
                     type="button"
                     onClick={handleReject}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 p-2.5 text-xs font-semibold transition-colors dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 p-2.5 text-xs font-semibold transition-colors dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
                   >
                     <XCircle className="w-3.5 h-3.5" />
                     <span>{t("municipal.btnRejectReport")}</span>
@@ -254,7 +356,8 @@ export default function MunicipalReportReviewPage({
                 <button
                   type="button"
                   onClick={() => setIsEmailModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white p-3 text-xs font-bold shadow-sm transition-colors"
                 >
                   <Send className="w-4 h-4" />
                   <span>Transmettre le courriel au service technique</span>
@@ -264,17 +367,20 @@ export default function MunicipalReportReviewPage({
               {report.status === "forwarded" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    updateReportStatus(report.id, "in_progress", {
-                      fr: "Équipe technique dépêchée sur le terrain à Tunis.",
-                      ar: "تم توجيه الفريق الفني الميداني للموقع في تونس.",
-                    });
-                    setActionSuccessMessage("Intervention terrain marquée en cours.");
-                    setTimeout(() => setActionSuccessMessage(null), 3000);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                  onClick={() =>
+                    handleStatusTransition(
+                      "in_progress",
+                      {
+                        fr: "Équipe technique dépêchée sur le terrain à Tunis.",
+                        ar: "تم توجيه الفريق الفني الميداني للموقع في تونس.",
+                      },
+                      "Intervention terrain marquée en cours."
+                    )
+                  }
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white p-3 text-xs font-bold shadow-sm transition-colors"
                 >
-                  <Clock className="w-4 h-4" />
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
                   <span>Déclarer l'intervention terrain en cours</span>
                 </button>
               )}
@@ -282,17 +388,20 @@ export default function MunicipalReportReviewPage({
               {report.status === "in_progress" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    updateReportStatus(report.id, "resolved", {
-                      fr: "Travaux terminés avec succès par le service municipal.",
-                      ar: "تم إنهاء الأشغال بنجاح من طرف المصلحة البلدية.",
-                    });
-                    setActionSuccessMessage("Dossier clôturé. Statut mis à jour à : Résolu.");
-                    setTimeout(() => setActionSuccessMessage(null), 3000);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white p-3 text-xs font-bold shadow-sm transition-colors"
+                  onClick={() =>
+                    handleStatusTransition(
+                      "resolved",
+                      {
+                        fr: "Travaux terminés avec succès par le service municipal.",
+                        ar: "تم إنهاء الأشغال بنجاح من طرف المصلحة البلدية.",
+                      },
+                      "Dossier clôturé. Statut mis à jour à : Résolu."
+                    )
+                  }
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white p-3 text-xs font-bold shadow-sm transition-colors"
                 >
-                  <Check className="w-4 h-4" />
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   <span>Clôturer le signalement (Travaux achevés)</span>
                 </button>
               )}
@@ -346,10 +455,19 @@ export default function MunicipalReportReviewPage({
         report={report}
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
-        onConfirmSend={() => {
-          sendOfficialEmail(report.id);
-          setActionSuccessMessage("Courriel officiel approuvé et enregistré dans l'historique.");
-          setTimeout(() => setActionSuccessMessage(null), 4000);
+        onConfirmSend={async () => {
+          setIsSubmitting(true);
+          setErrorMessage(null);
+          try {
+            const updated = await sendOfficialEmail(report.id);
+            if (updated) setReport(updated);
+            setActionSuccessMessage("Courriel officiel approuvé et enregistré dans l'historique.");
+            setTimeout(() => setActionSuccessMessage(null), 4000);
+          } catch (err: any) {
+            setErrorMessage(err.message || "Erreur lors de la transmission du courriel");
+          } finally {
+            setIsSubmitting(false);
+          }
         }}
       />
 

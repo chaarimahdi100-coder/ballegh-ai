@@ -17,6 +17,7 @@ import {
   Check,
   ShieldCheck,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export default function NewReportPage() {
     "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80"
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const tunisDistricts = [
     "Bab Souika",
@@ -69,9 +71,10 @@ export default function NewReportPage() {
     setPhotoPreview(categoryPresets[cat].photo);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     const titleText =
       category === "pothole"
@@ -80,8 +83,8 @@ export default function NewReportPage() {
         ? language === "ar" ? "انقطاع الإنارة بالحي" : "Panne d'éclairage public"
         : language === "ar" ? "تجمع مياه أمطار" : "Accumulation d'eau pluviale";
 
-    setTimeout(() => {
-      const newId = createReport({
+    try {
+      const newId = await createReport({
         category,
         title: titleText,
         description: description || (language === "ar" ? "بلاغ فوري مسجل عبر التطبيق." : "Signalement citoyen enregistré via l'application."),
@@ -91,7 +94,11 @@ export default function NewReportPage() {
       });
 
       router.push(`/citizen/reports/${newId}`);
-    }, 700);
+    } catch (err: any) {
+      setError(err.message || (language === "ar" ? "تعذر إرسال البلاغ للخادم" : "Erreur lors de la transmission du signalement."));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -106,6 +113,13 @@ export default function NewReportPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="flex items-center gap-2 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-300">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Step 1: Category Picker */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">

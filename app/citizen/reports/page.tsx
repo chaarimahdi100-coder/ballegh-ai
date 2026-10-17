@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
@@ -8,16 +8,45 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { CategoryBadge } from "@/components/common/CategoryBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { formatDate } from "@/lib/utils";
-import type { IssueCategory, ReportStatus } from "@/lib/types";
-import { Search, Filter, MapPin, Calendar, PlusCircle, ArrowRight } from "lucide-react";
+import type { IssueCategory, ReportStatus, Report } from "@/lib/types";
+import { Search, Filter, MapPin, Calendar, PlusCircle, ArrowRight, Loader2 } from "lucide-react";
 
 export default function CitizenReportsHistoryPage() {
   const { t, language } = useI18n();
-  const { reports, activeUser } = useDemo();
+  const { reports: fallbackReports, activeUser } = useDemo();
 
+  const [reports, setReports] = useState<Report[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadReports() {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/reports?myOnly=true");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reports && Array.isArray(data.reports) && isMounted) {
+            setReports(data.reports);
+            return;
+          }
+        }
+        if (isMounted) setReports(fallbackReports);
+      } catch (err: any) {
+        console.warn("[CitizenReportsPage] Failed to fetch /api/reports:", err.message);
+        if (isMounted) setReports(fallbackReports);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    loadReports();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeUser.id, fallbackReports]);
 
   const filtered = reports.filter((report) => {
     // Search query match
@@ -100,7 +129,12 @@ export default function CitizenReportsHistoryPage() {
 
       {/* Reports List */}
       <div className="space-y-4">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-brand-teal-600 mb-2" />
+            <p className="text-sm font-medium">Chargement des signalements en direct...</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState
             title="Aucun signalement correspondant"
             description="Essayez de modifier vos filtres ou effectuez une nouvelle recherche."

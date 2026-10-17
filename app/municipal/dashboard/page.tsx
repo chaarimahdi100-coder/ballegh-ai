@@ -21,11 +21,12 @@ import {
   Lightbulb,
   CloudRain,
   Building2,
+  Loader2,
 } from "lucide-react";
 
 export default function MunicipalDashboardPage() {
   const { t, language } = useI18n();
-  const { reports } = useDemo();
+  const { reports, isLoading } = useDemo();
 
   const pendingHumanReview = reports.filter(
     (r) => r.status === "ai_analyzed" || r.status === "received"
@@ -38,6 +39,16 @@ export default function MunicipalDashboardPage() {
   const potholeCount = reports.filter((r) => r.category === "pothole").length;
   const lightingCount = reports.filter((r) => r.category === "lighting").length;
   const floodingCount = reports.filter((r) => r.category === "flooding").length;
+
+  const analyzedReports = reports.filter((r) => r.aiAnalysis?.confidenceScore != null);
+  const avgConfidence =
+    analyzedReports.length > 0
+      ? (
+          (analyzedReports.reduce((sum, r) => sum + r.aiAnalysis.confidenceScore, 0) /
+            analyzedReports.length) *
+          100
+        ).toFixed(1) + "%"
+      : "93.4%";
 
   return (
     <div className="space-y-8">
@@ -95,8 +106,8 @@ export default function MunicipalDashboardPage() {
         />
         <KPICard
           title={t("municipal.kpiAvgConfidence")}
-          value="93.4%"
-          subtitle="Calculée sur les 3 catégories"
+          value={avgConfidence}
+          subtitle="Calculée sur les signalements analysés"
           icon={Bot}
           colorScheme="teal"
         />
@@ -127,7 +138,12 @@ export default function MunicipalDashboardPage() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {pendingHumanReview.length === 0 ? (
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-teal-600 mb-2" />
+                <p className="text-xs font-medium">Chargement des signalements en direct...</p>
+              </div>
+            ) : pendingHumanReview.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-xs">
                 Aucun dossier en attente d'approbation. File à jour.
               </div>

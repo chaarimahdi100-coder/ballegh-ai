@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
 import { MUNICIPAL_SERVICES } from "@/lib/demo/services";
+import type { MunicipalService } from "@/lib/types";
 import {
   Settings,
   Server,
@@ -14,16 +15,44 @@ import {
   Sliders,
   Mail,
   Building2,
+  Loader2,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const { t, language } = useI18n();
   const { resetDemoData } = useDemo();
 
+  const [services, setServices] = useState<MunicipalService[]>(MUNICIPAL_SERVICES);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+
   const [minConfidence, setMinConfidence] = useState(85);
   const [duplicateRadius, setDuplicateRadius] = useState(80);
   const [agingBoost, setAgingBoost] = useState(10);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadServices() {
+      setIsLoadingServices(true);
+      try {
+        const res = await fetch("/api/services");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.services && Array.isArray(data.services) && isMounted) {
+            setServices(data.services);
+          }
+        }
+      } catch (err: any) {
+        console.warn("[AdminSettings] Error loading services:", err.message);
+      } finally {
+        if (isMounted) setIsLoadingServices(false);
+      }
+    }
+    loadServices();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +94,13 @@ export default function AdminSettingsPage() {
         </div>
 
         <div className="space-y-3">
-          {MUNICIPAL_SERVICES.map((srv) => (
+          {isLoadingServices ? (
+            <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-teal-600 mb-2" />
+              <p className="text-xs font-medium">Chargement des services municipaux...</p>
+            </div>
+          ) : (
+            services.map((srv) => (
             <div
               key={srv.id}
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/40 text-xs"
@@ -90,7 +125,7 @@ export default function AdminSettingsPage() {
                 </span>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 

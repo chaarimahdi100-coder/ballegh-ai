@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
@@ -19,15 +19,22 @@ import {
   Info,
   Maximize2,
   Navigation,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MunicipalMapPage() {
   const { t, language } = useI18n();
-  const { reports } = useDemo();
+  const { reports, isLoading } = useDemo();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedReport, setSelectedReport] = useState<Report | null>(reports[0] || null);
+
+  useEffect(() => {
+    if (!selectedReport && reports.length > 0) {
+      setSelectedReport(reports[0]);
+    }
+  }, [reports, selectedReport]);
 
   const filtered = reports.filter((r) => {
     return selectedCategory === "all" || r.category === selectedCategory;

@@ -18,11 +18,12 @@ import {
   Building2,
   Calendar,
   MapPin,
+  Loader2,
 } from "lucide-react";
 
 export default function MunicipalReportsQueuePage() {
   const { t, language } = useI18n();
-  const { reports } = useDemo();
+  const { reports, isLoading } = useDemo();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -134,7 +135,16 @@ export default function MunicipalReportsQueuePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {filtered.length === 0 ? (
+              {isLoading && reports.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-brand-teal-600" />
+                      <span>Chargement de la file des signalements...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     Aucun dossier trouvé selon ces critères.

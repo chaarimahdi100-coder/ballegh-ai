@@ -1,15 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import type { Report, User, UserRole, IssueCategory, ReportStatus } from "@/lib/types";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import type { Report, User, UserRole, IssueCategory, ReportStatus, SeverityLevel } from "@/lib/types";
 import { INITIAL_DEMO_REPORTS } from "./reports";
 import { DEMO_USERS } from "./users";
 
-interface DemoContextType {
+export interface DemoContextType {
   reports: Report[];
   activeUser: User;
-  setActiveRole: (role: UserRole) => void;
+  isLoading: boolean;
+  error: string | null;
+  setActiveRole: (role: UserRole) => Promise<void>;
+  refreshReports: () => Promise<void>;
   getReportById: (id: string) => Report | undefined;
+  fetchReportById: (id: string) => Promise<Report | null>;
   createReport: (newReportData: {
     category: IssueCategory;
     title: string;
@@ -17,175 +21,175 @@ interface DemoContextType {
     district: string;
     streetAddress: string;
     photoUrl?: string;
-  }) => string; // returns new report ID
+  }) => Promise<string>;
   updateHumanReview: (
     reportId: string,
     decision: "accepted" | "modified" | "rejected",
     notes?: string,
     modifications?: {
       category?: IssueCategory;
-      severity?: 1 | 2 | 3;
+      severity?: SeverityLevel;
       priority?: number;
     }
-  ) => void;
-  sendOfficialEmail: (reportId: string) => void;
+  ) => Promise<Report | null>;
+  sendOfficialEmail: (reportId: string) => Promise<Report | null>;
   updateReportStatus: (
     reportId: string,
     status: ReportStatus,
     comment?: { fr: string; ar: string }
-  ) => void;
-  confirmCitizenResolution: (reportId: string) => void;
-  resetDemoData: () => void;
+  ) => Promise<Report | null>;
+  confirmCitizenResolution: (reportId: string) => Promise<Report | null>;
+  resetDemoData: () => Promise<void>;
 }
 
 const DemoContext = createContext<DemoContextType | undefined>(undefined);
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
-  const [reports, setReports] = useState<Report[]>(INITIAL_DEMO_REPORTS);
-  const [activeUser, setActiveUser] = useState<User>(DEMO_USERS[0]); // default: Citizen
+  const [reports, setReports] = useState<Report[]>([]);
+  const [activeUser, setActiveUser] = useState<User>(DEMO_USERS[0]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const savedReports = localStorage.getItem("ballegh_demo_reports");
-    if (savedReports) {
-      try {
-        setReports(JSON.parse(savedReports));
-      } catch {
-        // ignore fallback
-      }
-    }
-    const savedRole = localStorage.getItem("ballegh_active_role") as UserRole;
-    if (savedRole) {
-      const found = DEMO_USERS.find((u) => u.role === savedRole);
-      if (found) setActiveUser(found);
-    }
-
-    async function syncWithServer() {
-      try {
-        const [repRes, meRes] = await Promise.allSettled([
-          fetch("/api/reports"),
-          fetch("/api/auth/me"),
-        ]);
-
-        if (repRes.status === "fulfilled" && repRes.value.ok) {
-          const repData = await repRes.value.json();
-          if (repData.reports && Array.isArray(repData.reports) && repData.reports.length > 0) {
-            setReports(repData.reports);
-            localStorage.setItem("ballegh_demo_reports", JSON.stringify(repData.reports));
-          }
+  const refreshReports = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/reports");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reports && Array.isArray(data.reports)) {
+          setReports(data.reports);
+          return;
         }
-
-        if (meRes.status === "fulfilled" && meRes.value.ok) {
-          const meData = await meRes.value.json();
-          if (meData.user) {
-            setActiveUser(meData.user);
-          }
-        }
-      } catch {
-        // network or server offline, keep local state
       }
+      // If endpoint failed or offline, fall back to initial demo reports
+      setReports((prev) => (prev.length > 0 ? prev : INITIAL_DEMO_REPORTS));
+    } catch (err: any) {
+      console.warn("[DemoStore] Failed to fetch /api/reports, using memory cache:", err.message);
+      setError("Connexion à l'API impossible, mode hors ligne activé.");
+      setReports((prev) => (prev.length > 0 ? prev : INITIAL_DEMO_REPORTS));
+    } finally {
+      setIsLoading(false);
     }
-
-    syncWithServer();
   }, []);
 
-  const saveReports = (newReports: Report[]) => {
-    setReports(newReports);
-    localStorage.setItem("ballegh_demo_reports", JSON.stringify(newReports));
-  };
+  const syncUserSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          setActiveUser(data.user);
+          return;
+        }
+      }
+      // Check saved demo role fallback
+      const savedRole = localStorage.getItem("ballegh_active_role") as UserRole;
+      if (savedRole) {
+        const found = DEMO_USERS.find((u) => u.role === savedRole);
+        if (found) setActiveUser(found);
+      }
+    } catch {
+      // offline fallback
+    }
+  }, []);
 
-  const setActiveRole = (role: UserRole) => {
+  useEffect(() => {
+    Promise.allSettled([syncUserSession(), refreshReports()]);
+  }, [syncUserSession, refreshReports]);
+
+  const setActiveRole = async (role: UserRole) => {
     const found = DEMO_USERS.find((u) => u.role === role) || DEMO_USERS[0];
     setActiveUser(found);
     localStorage.setItem("ballegh_active_role", role);
-    fetch("/api/auth/demo-switch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    }).catch(() => {});
+
+    try {
+      await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      // Refresh reports to apply role-specific visibility rules
+      await refreshReports();
+    } catch {
+      // offline fallback
+    }
   };
 
-  const getReportById = (id: string) => {
+  const getReportById = (id: string): Report | undefined => {
     return reports.find((r) => r.id === id);
   };
 
-  const createReport = (data: {
+  const fetchReportById = async (id: string): Promise<Report | null> => {
+    try {
+      const res = await fetch(`/api/reports/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.report) {
+          // Update in local cache
+          setReports((prev) => {
+            const exists = prev.some((r) => r.id === id);
+            return exists ? prev.map((r) => (r.id === id ? data.report : r)) : [data.report, ...prev];
+          });
+          return data.report;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[DemoStore] Error fetching report ${id}:`, err.message);
+    }
+    return getReportById(id) || null;
+  };
+
+  const createReport = async (data: {
     category: IssueCategory;
     title: string;
     description: string;
     district: string;
     streetAddress: string;
     photoUrl?: string;
-  }): string => {
-    const newId = `rep-${Date.now().toString().slice(-4)}`;
-    const refNum = `BLG-2026-TUN-${(reports.length + 1).toString().padStart(3, "0")}`;
+  }): Promise<string> => {
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    // Simulated AI Processing based on category
-    const categoryDefaults = {
-      pothole: {
-        conf: 0.93,
-        sev: 2 as const,
-        score: 76,
-        dept: "Direction de la Voirie et des Réseaux Divers",
-        email: "voirie.technique@commune-tunis.gov.tn",
-        rationaleFr: "Dégradation de surface sur voie carrossable nécessitant rebouchage.",
-        rationaleAr: "اهتراء سطحي بمسار السير يتطلب التدخل للترميم.",
-      },
-      lighting: {
-        conf: 0.91,
-        sev: 2 as const,
-        score: 70,
-        dept: "Division Éclairage Public et Énergie",
-        email: "eclairage.public@commune-tunis.gov.tn",
-        rationaleFr: "Panne d'éclairage nocturne signalée par photo.",
-        rationaleAr: "عطب إنارة ليلية مؤكد بالصورة المرفقة.",
-      },
-      flooding: {
-        conf: 0.95,
-        sev: 3 as const,
-        score: 88,
-        dept: "Direction de l'Assainissement et des Eaux Pluviales",
-        email: "eaux.pluviales@commune-tunis.gov.tn",
-        rationaleFr: "Accumulation critique d'eau de pluie et risque de saturation de voirie.",
-        rationaleAr: "تراكم مياه أمطار مع خطر انسداد قنوات التصريف في المنطقة.",
-      },
-    };
+      if (res.ok) {
+        const result = await res.json();
+        if (result.report) {
+          setReports((prev) => [result.report, ...prev]);
+          return result.report.id;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[DemoStore] Failed to post report to server API, creating locally:", err.message);
+    }
 
-    const sim = categoryDefaults[data.category];
-
-    const newReport: Report = {
-      id: newId,
-      referenceNumber: refNum,
-      title: {
-        fr: data.title,
-        ar: data.title,
-      },
-      description: {
-        fr: data.description,
-        ar: data.description,
-      },
+    // Offline / fallback creation
+    const fallbackId = `rep-${Date.now().toString().slice(-4)}`;
+    const fallbackReport: Report = {
+      id: fallbackId,
+      referenceNumber: `BLG-2026-TUN-${Math.floor(100 + Math.random() * 900)}`,
+      title: { fr: data.title, ar: data.title },
+      description: { fr: data.description, ar: data.description },
       category: data.category,
       status: "ai_analyzed",
-      urgency: sim.sev === 3 ? "critical" : "high",
+      urgency: "high",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       location: {
         governorate: "Tunis",
         municipality: "Commune de Tunis",
-        district: data.district || "Centre-Ville",
-        streetAddress: data.streetAddress || "Avenue Habib Bourguiba",
+        district: data.district,
+        streetAddress: data.streetAddress,
         latitude: 36.8005,
         longitude: 10.1805,
       },
       photos: [
         {
           id: `ph-${Date.now()}`,
-          url:
-            data.photoUrl ||
-            (data.category === "pothole"
-              ? "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80"
-              : data.category === "lighting"
-              ? "https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80"
-              : "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80"),
+          url: data.photoUrl || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80",
           uploadedAt: new Date().toISOString(),
         },
       ],
@@ -197,13 +201,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       },
       aiAnalysis: {
         predictedCategory: data.category,
-        confidenceScore: sim.conf,
-        estimatedSeverity: sim.sev,
+        confidenceScore: 0.92,
+        estimatedSeverity: 2,
         severityRationale: {
-          fr: sim.rationaleFr,
-          ar: sim.rationaleAr,
+          fr: "Diagnostic préliminaire local.",
+          ar: "تشخيص محلي أولي.",
         },
-        priorityScore: sim.score,
+        priorityScore: 75,
         priorityFactors: {
           baseSeverityWeight: 35,
           densityWeight: 20,
@@ -212,257 +216,229 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         },
         duplicateDetection: {
           isLikelyDuplicate: false,
-          similarityScore: 0.1,
+          similarityScore: 0.0,
           relatedReportIds: [],
-          explanation: {
-            fr: "Analyse spatio-temporelle : aucun signalement identique dans les 100m.",
-            ar: "تحليل مكاني وزمني: لا يوجد بلاغ مطابق في محيط 100 متر.",
-          },
+          explanation: { fr: "Aucun doublon détecté.", ar: "لا يوجد تشابه." },
         },
-        suggestedServiceCode:
-          data.category === "pothole"
-            ? "DVRD-TUNIS"
-            : data.category === "lighting"
-            ? "DEP-ECL-TUNIS"
-            : "DAEP-TUNIS",
+        suggestedServiceCode: "DVRD-TUNIS",
         generatedEmailDraft: {
-          recipientDepartment: sim.dept,
-          recipientEmail: sim.email,
-          subject: `[${data.category.toUpperCase()} - ${refNum}] Nouveau signalement à valider - ${data.district}`,
-          body: `Signalement ${refNum} enregistré le ${new Date().toLocaleDateString("fr-TN")} à ${data.streetAddress}, ${data.district}.\n\nDescription citoyenne : "${data.description}"\n\nDiagnostic IA : Gravité ${sim.sev}/3, Priorité estimée ${sim.score}/100.\n\nEn attente de validation par l'agent municipal référent.`,
+          recipientDepartment: "Services Techniques",
+          recipientEmail: "services.techniques@commune-tunis.gov.tn",
+          subject: `[SIGNALEMENT] ${data.title}`,
+          body: data.description,
         },
       },
       timeline: [
         {
-          id: `tl-init-${Date.now()}`,
+          id: `tl-rec-${Date.now()}`,
           status: "received",
           timestamp: new Date().toISOString(),
           author: activeUser.name,
           authorRole: "citizen",
-          comment: {
-            fr: "Signalement soumis par le citoyen.",
-            ar: "تم تقديم البلاغ من طرف المواطن.",
-          },
-        },
-        {
-          id: `tl-ai-${Date.now()}`,
-          status: "ai_analyzed",
-          timestamp: new Date(Date.now() + 1000).toISOString(),
-          author: "Ballegh AI Engine",
-          authorRole: "system_ai",
-          comment: {
-            fr: `Diagnostic IA complété (${Math.round(sim.conf * 100)}% confiance). Recommandation transmise à l'agent de garde.`,
-            ar: `اكتمل تشخيص الذكاء الاصطناعي (نسبة ثقة ${Math.round(sim.conf * 100)}%). أحيل الملف للمراجعة البلدية.`,
-          },
+          comment: { fr: "Signalement initial soumis.", ar: "تم تقديم البلاغ الأولي." },
         },
       ],
     };
 
-    const updated = [newReport, ...reports];
-    saveReports(updated);
-
-    // Persist to server API
-    fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: newId,
-        category: data.category,
-        title: data.title,
-        description: data.description,
-        district: data.district,
-        streetAddress: data.streetAddress,
-        photoUrl: data.photoUrl,
-      }),
-    }).catch(() => {
-      // offline fallback
-    });
-
-    return newId;
+    setReports((prev) => [fallbackReport, ...prev]);
+    return fallbackId;
   };
 
-  const updateHumanReview = (
+  const updateHumanReview = async (
     reportId: string,
     decision: "accepted" | "modified" | "rejected",
     notes?: string,
     modifications?: {
       category?: IssueCategory;
-      severity?: 1 | 2 | 3;
+      severity?: SeverityLevel;
       priority?: number;
     }
-  ) => {
-    const updated = reports.map((r) => {
-      if (r.id !== reportId) return r;
-
-      const newStatus = decision === "rejected" ? ("rejected" as const) : ("human_validated" as const);
-
-      const timelineEntry = {
-        id: `tl-rev-${Date.now()}`,
-        status: newStatus,
-        timestamp: new Date().toISOString(),
-        author: activeUser.name,
-        authorRole: activeUser.role,
-        comment: {
-          fr: `Décision de l'agent : ${decision.toUpperCase()}. ${notes || ""}`,
-          ar: `قرار العون البلدي: ${decision.toUpperCase()}. ${notes || ""}`,
-        },
-      };
-
-      return {
-        ...r,
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-        humanReview: {
-          reviewedBy: activeUser.name,
-          reviewedAt: new Date().toISOString(),
+  ): Promise<Report | null> => {
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "human_review",
           decision,
-          decisionNotes: notes,
-          adjustedCategory: modifications?.category || r.category,
-          adjustedSeverity: modifications?.severity || r.aiAnalysis.estimatedSeverity,
-          adjustedPriority: modifications?.priority || r.aiAnalysis.priorityScore,
-        },
-        timeline: [...r.timeline, timelineEntry],
-      };
-    });
+          notes,
+          modifications,
+        }),
+      });
 
-    saveReports(updated);
+      if (res.ok) {
+        const result = await res.json();
+        if (result.report) {
+          setReports((prev) => prev.map((r) => (r.id === reportId ? result.report : r)));
+          return result.report;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[DemoStore] Failed to PATCH review to server:", err.message);
+    }
 
-    // Persist to server API
-    fetch(`/api/reports/${reportId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "human_review",
-        decision,
-        notes,
-        modifications,
-      }),
-    }).catch(() => {});
+    // Local fallback update
+    const newStatus = decision === "rejected" ? ("rejected" as const) : ("human_validated" as const);
+    let updatedReport: Report | null = null;
+
+    setReports((prev) =>
+      prev.map((r) => {
+        if (r.id !== reportId) return r;
+        updatedReport = {
+          ...r,
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+          humanReview: {
+            reviewedBy: activeUser.name,
+            reviewedAt: new Date().toISOString(),
+            decision,
+            decisionNotes: notes,
+            adjustedCategory: modifications?.category || r.category,
+            adjustedSeverity: modifications?.severity || r.aiAnalysis.estimatedSeverity,
+            adjustedPriority: modifications?.priority || r.aiAnalysis.priorityScore,
+          },
+          timeline: [
+            ...r.timeline,
+            {
+              id: `tl-rev-${Date.now()}`,
+              status: newStatus,
+              timestamp: new Date().toISOString(),
+              author: activeUser.name,
+              authorRole: activeUser.role,
+              comment: {
+                fr: `Décision de l'agent : ${decision.toUpperCase()}. ${notes || ""}`,
+                ar: `قرار العون البلدي: ${decision.toUpperCase()}. ${notes || ""}`,
+              },
+            },
+          ],
+        };
+        return updatedReport;
+      })
+    );
+
+    return updatedReport;
   };
 
-  const sendOfficialEmail = (reportId: string) => {
-    const updated = reports.map((r) => {
-      if (r.id !== reportId) return r;
-      const timelineEntry = {
-        id: `tl-mail-${Date.now()}`,
-        status: "forwarded" as const,
-        timestamp: new Date().toISOString(),
-        author: activeUser.name,
-        authorRole: activeUser.role,
-        comment: {
-          fr: `Courriel officiel approuvé et transmis au service technique référent.`,
-          ar: `تمت المصادقة على البريد الرسمي وإحالته للمصلحة الفنية المعنية.`,
-        },
-      };
+  const sendOfficialEmail = async (reportId: string): Promise<Report | null> => {
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send_email" }),
+      });
 
-      return {
-        ...r,
-        status: "forwarded" as const,
-        officialEmailSent: true,
-        officialEmailSentAt: new Date().toISOString(),
-        timeline: [...r.timeline, timelineEntry],
-      };
-    });
-
-    saveReports(updated);
-
-    // Persist to server API
-    fetch(`/api/reports/${reportId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "send_email",
-      }),
-    }).catch(() => {});
+      if (res.ok) {
+        const result = await res.json();
+        if (result.report) {
+          setReports((prev) => prev.map((r) => (r.id === reportId ? result.report : r)));
+          return result.report;
+        }
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || "Échec de l'envoi de l'e-mail officiel");
+      }
+    } catch (err: any) {
+      console.error("[DemoStore] sendOfficialEmail error:", err.message);
+      throw err;
+    }
+    return null;
   };
 
-  const updateReportStatus = (
+  const updateReportStatus = async (
     reportId: string,
     status: ReportStatus,
     comment?: { fr: string; ar: string }
-  ) => {
-    const updated = reports.map((r) => {
-      if (r.id !== reportId) return r;
-      const timelineEntry = {
-        id: `tl-stat-${Date.now()}`,
-        status,
-        timestamp: new Date().toISOString(),
-        author: activeUser.name,
-        authorRole: activeUser.role,
-        comment: comment || {
-          fr: `Statut mis à jour à : ${status}`,
-          ar: `تم تحديث الحالة إلى: ${status}`,
-        },
-      };
+  ): Promise<Report | null> => {
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "advance_status",
+          status,
+          comment,
+        }),
+      });
 
-      return {
-        ...r,
-        status,
-        updatedAt: new Date().toISOString(),
-        timeline: [...r.timeline, timelineEntry],
-      };
-    });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.report) {
+          setReports((prev) => prev.map((r) => (r.id === reportId ? result.report : r)));
+          return result.report;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[DemoStore] Failed to PATCH advance_status to server:", err.message);
+    }
 
-    saveReports(updated);
+    let updatedReport: Report | null = null;
+    setReports((prev) =>
+      prev.map((r) => {
+        if (r.id !== reportId) return r;
+        updatedReport = {
+          ...r,
+          status,
+          updatedAt: new Date().toISOString(),
+          timeline: [
+            ...r.timeline,
+            {
+              id: `tl-stat-${Date.now()}`,
+              status,
+              timestamp: new Date().toISOString(),
+              author: activeUser.name,
+              authorRole: activeUser.role,
+              comment: comment || {
+                fr: `Statut mis à jour à : ${status}`,
+                ar: `تم تحديث الحالة إلى: ${status}`,
+              },
+            },
+          ],
+        };
+        return updatedReport;
+      })
+    );
 
-    // Persist to server API
-    fetch(`/api/reports/${reportId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "advance_status",
-        status,
-        comment,
-      }),
-    }).catch(() => {});
+    return updatedReport;
   };
 
-  const confirmCitizenResolution = (reportId: string) => {
-    const updated = reports.map((r) => {
-      if (r.id !== reportId) return r;
-      const timelineEntry = {
-        id: `tl-conf-${Date.now()}`,
-        status: "resolved" as const,
-        timestamp: new Date().toISOString(),
-        author: activeUser.name,
-        authorRole: "citizen" as const,
-        comment: {
-          fr: `Résolution sur le terrain confirmée par le citoyen.`,
-          ar: `تم تأكيد الإصلاح الفعلي على الميدان من طرف المواطن.`,
-        },
-      };
+  const confirmCitizenResolution = async (reportId: string): Promise<Report | null> => {
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "confirm_resolution" }),
+      });
 
-      return {
-        ...r,
-        status: "resolved" as const,
-        resolutionConfirmedByCitizen: true,
-        updatedAt: new Date().toISOString(),
-        timeline: [...r.timeline, timelineEntry],
-      };
-    });
-
-    saveReports(updated);
-
-    // Persist to server API
-    fetch(`/api/reports/${reportId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "confirm_resolution",
-      }),
-    }).catch(() => {});
+      if (res.ok) {
+        const result = await res.json();
+        if (result.report) {
+          setReports((prev) => prev.map((r) => (r.id === reportId ? result.report : r)));
+          return result.report;
+        }
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || "Confirmation de résolution impossible");
+      }
+    } catch (err: any) {
+      console.error("[DemoStore] confirmCitizenResolution error:", err.message);
+      throw err;
+    }
+    return null;
   };
 
-  const resetDemoData = () => {
-    localStorage.removeItem("ballegh_demo_reports");
+  const resetDemoData = async () => {
     localStorage.removeItem("ballegh_active_role");
-    setReports(INITIAL_DEMO_REPORTS);
     setActiveUser(DEMO_USERS[0]);
-    fetch("/api/auth/demo-switch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "citizen" }),
-    }).catch(() => {});
+    try {
+      await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "citizen" }),
+      });
+      await refreshReports();
+    } catch {
+      setReports(INITIAL_DEMO_REPORTS);
+    }
   };
 
   return (
@@ -470,8 +446,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       value={{
         reports,
         activeUser,
+        isLoading,
+        error,
         setActiveRole,
+        refreshReports,
         getReportById,
+        fetchReportById,
         createReport,
         updateHumanReview,
         sendOfficialEmail,

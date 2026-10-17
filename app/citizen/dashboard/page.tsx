@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nContext";
 import { useDemo } from "@/lib/demo/DemoStore";
@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { CategoryBadge } from "@/components/common/CategoryBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { formatDate } from "@/lib/utils";
+import type { Report } from "@/lib/types";
 import {
   PlusCircle,
   Clock,
@@ -17,16 +18,40 @@ import {
   ArrowRight,
   MapPin,
   Calendar,
-  AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 export default function CitizenDashboardPage() {
   const { t, language } = useI18n();
-  const { reports, activeUser } = useDemo();
+  const { activeUser } = useDemo();
 
-  const myReports = reports.filter(
-    (r) => r.submittedBy.id === activeUser.id || r.submittedBy.name.includes("Yassine")
-  );
+  const [myReports, setMyReports] = useState<Report[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadMyReports() {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/reports?myOnly=true");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reports && Array.isArray(data.reports) && isMounted) {
+            setMyReports(data.reports);
+          }
+        }
+      } catch (err: any) {
+        console.warn("[CitizenDashboard] Failed to fetch citizen reports:", err.message);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadMyReports();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeUser.id]);
 
   const activeReportsCount = myReports.filter((r) => r.status !== "resolved" && r.status !== "rejected").length;
   const resolvedReportsCount = myReports.filter((r) => r.status === "resolved").length;
@@ -60,21 +85,21 @@ export default function CitizenDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <KPICard
           title={t("citizen.activeReports")}
-          value={activeReportsCount}
+          value={isLoading ? "..." : activeReportsCount}
           subtitle="En cours de traitement municipal"
           icon={Clock}
           colorScheme="amber"
         />
         <KPICard
           title={t("citizen.resolvedReports")}
-          value={resolvedReportsCount}
+          value={isLoading ? "..." : resolvedReportsCount}
           subtitle="Interventions clôturées avec succès"
           icon={CheckCircle2}
           colorScheme="emerald"
         />
         <KPICard
           title={t("citizen.totalContributions")}
-          value={myReports.length}
+          value={isLoading ? "..." : myReports.length}
           subtitle="Signalements enregistrés à Tunis"
           icon={ListOrdered}
           colorScheme="teal"
@@ -102,7 +127,12 @@ export default function CitizenDashboardPage() {
         </div>
 
         <div className="mt-6 space-y-4">
-          {myReports.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-3">
+              <Loader2 className="w-6 h-6 text-brand-teal-600 animate-spin" />
+              <p className="text-xs text-slate-500">Chargement de vos signalements...</p>
+            </div>
+          ) : myReports.length === 0 ? (
             <EmptyState
               title={t("citizen.noReportsYet")}
               description="Signalez votre premier nid-de-poule, lampadaire défaillant ou problème d'eau pluviale."
