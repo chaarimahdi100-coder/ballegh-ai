@@ -71,6 +71,33 @@ export default function NewReportPage() {
     setPhotoPreview(categoryPresets[cat].photo);
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Format de fichier non supporté. Veuillez sélectionner une image (JPG, PNG, WebP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image trop volumineuse. La taille maximale autorisée est de 5 Mo.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setPhotoPreview(reader.result);
+        setError(null);
+      }
+    };
+    reader.onerror = () => {
+      setError("Erreur lors de la lecture du fichier image.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -208,15 +235,25 @@ export default function NewReportPage() {
             </div>
 
             <div className="flex-1 space-y-2 w-full">
-              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center dark:border-slate-700">
-                <Camera className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold block">
-                  Photo synchronisée avec géolocalisation
+              <label
+                htmlFor="photo-upload-input"
+                className="cursor-pointer rounded-lg border border-dashed border-slate-300 p-4 text-center dark:border-slate-700 block hover:border-brand-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <input
+                  id="photo-upload-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <Camera className="w-6 h-6 text-brand-teal-600 mx-auto mb-1" />
+                <span className="text-xs text-slate-800 dark:text-slate-200 font-bold block">
+                  Choisir une photo de l'incident ou photographier
                 </span>
-                <span className="text-[11px] text-slate-400">
-                  Prise de vue en direct recommandée
+                <span className="text-[11px] text-slate-400 block mt-0.5">
+                  Fichiers acceptés : JPG, PNG, WebP (Max 5 Mo)
                 </span>
-              </div>
+              </label>
 
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <ShieldCheck className="w-4 h-4 text-brand-teal-600 shrink-0" />

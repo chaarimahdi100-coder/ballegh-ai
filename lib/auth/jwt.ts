@@ -5,6 +5,7 @@ export interface SessionPayload {
   userId: string;
   email: string;
   fullName: string;
+  phone?: string;
   role: UserRole;
   district?: string;
   organization?: string;
@@ -42,6 +43,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       userId: payload.sub as string,
       email: payload.email as string,
       fullName: payload.fullName as string,
+      phone: payload.phone as string | undefined,
       role: payload.role as UserRole,
       district: payload.district as string | undefined,
       organization: payload.organization as string | undefined,

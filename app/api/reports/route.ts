@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth/session";
 import { listReports, createReport } from "@/lib/repositories/reportRepository";
+import { findUserById } from "@/lib/repositories/userRepository";
 import type { IssueCategory, ReportStatus } from "@/lib/types";
 
 const createReportSchema = z.object({
@@ -94,12 +95,18 @@ export async function POST(request: Request) {
       );
     }
 
+    let citizenPhone = session.phone;
+    if (!citizenPhone) {
+      const dbUser = await findUserById(session.userId);
+      citizenPhone = dbUser?.phone || "+216 98 000 000";
+    }
+
     const newReport = await createReport({
       ...parsed.data,
       submittedBy: {
         id: session.userId,
         name: session.fullName,
-        phone: "+216 98 000 000",
+        phone: citizenPhone,
       },
     });
 

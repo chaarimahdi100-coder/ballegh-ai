@@ -36,9 +36,12 @@ export function AIReviewCard({ report, className }: AIReviewCardProps) {
               <span>{t("municipal.aiAnalysisCard")}</span>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full dark:bg-indigo-900/50 dark:text-indigo-300">
                 <Sparkles className="w-3 h-3" />
-                <span>v1.2</span>
+                <span>Modèle Heuristique</span>
               </span>
             </h3>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+              Analyse locale déterministe (Simulation validée • Prêt pour clé GEMINI_API_KEY)
+            </span>
           </div>
         </div>
 

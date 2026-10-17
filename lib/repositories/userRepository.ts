@@ -81,6 +81,45 @@ export async function findUserByEmail(email: string): Promise<(User & { password
   return found || null;
 }
 
+export async function findUserById(id: string): Promise<User | null> {
+  if (getIsDatabaseConfigured()) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+      if (user) {
+        return {
+          id: user.id,
+          name: user.fullName,
+          email: user.email,
+          phone: user.phone,
+          role: user.role.toLowerCase() as UserRole,
+          district: user.district || undefined,
+          organization: user.organization || undefined,
+          avatarUrl: user.avatarUrl || undefined,
+        };
+      }
+      return null;
+    } catch (err: any) {
+      console.error("[userRepository] Database error in findUserById:", err.message);
+      throw new Error(`Database error while retrieving user by ID: ${err.message}`);
+    }
+  }
+
+  const found = inMemoryUsers.find((u) => u.id === id);
+  if (!found) return null;
+  return {
+    id: found.id,
+    name: found.name,
+    email: found.email,
+    phone: found.phone,
+    role: found.role,
+    district: found.district,
+    organization: found.organization,
+    avatarUrl: found.avatarUrl,
+  };
+}
+
 export async function createUser(data: {
   fullName: string;
   email: string;
