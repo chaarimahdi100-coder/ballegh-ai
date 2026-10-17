@@ -1,4 +1,4 @@
-import { prisma, isDatabaseConfigured } from "@/lib/db";
+import { prisma, getIsDatabaseConfigured } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { DEMO_USERS } from "@/lib/demo/users";
 import type { User, UserRole } from "@/lib/types";
@@ -50,8 +50,8 @@ const inMemoryUsers: (User & { passwordHash: string })[] = [
 export async function findUserByEmail(email: string): Promise<(User & { passwordHash: string }) | null> {
   const normalized = email.trim().toLowerCase();
 
-  // Try Prisma first when configured
-  if (isDatabaseConfigured) {
+  // If database is configured, strictly query PostgreSQL
+  if (getIsDatabaseConfigured()) {
     try {
       const user = await prisma.user.findUnique({
         where: { email: normalized },
@@ -69,12 +69,14 @@ export async function findUserByEmail(email: string): Promise<(User & { password
           passwordHash: user.passwordHash,
         };
       }
-    } catch {
-      // Database connection not available or offline — fall back gracefully
+      return null;
+    } catch (err: any) {
+      console.error("[userRepository] Database error in findUserByEmail:", err.message);
+      throw new Error(`Database error while retrieving user: ${err.message}`);
     }
   }
 
-  // Fallback to in-memory store
+  // Fallback to in-memory store ONLY when database is not configured
   const found = inMemoryUsers.find((u) => u.email.toLowerCase() === normalized);
   return found || null;
 }
@@ -91,7 +93,7 @@ export async function createUser(data: {
   const passwordHash = await bcrypt.hash(data.password, 12);
   const role = data.role || "citizen";
 
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
       const created = await prisma.user.create({
         data: {
@@ -113,12 +115,13 @@ export async function createUser(data: {
         district: created.district || undefined,
         organization: created.organization || undefined,
       };
-    } catch {
-      // fallback to in-memory
+    } catch (err: any) {
+      console.error("[userRepository] Database error in createUser:", err.message);
+      throw new Error(`Database error while creating user: ${err.message}`);
     }
   }
 
-  // In-memory fallback
+  // In-memory fallback ONLY when database is not configured
   const newUser: User & { passwordHash: string } = {
     id: `usr_${Date.now()}`,
     name: data.fullName,
@@ -140,25 +143,24 @@ export async function createUser(data: {
 }
 
 export async function listAllUsers(): Promise<User[]> {
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
       const users = await prisma.user.findMany({
         orderBy: { createdAt: "desc" },
       });
-      if (users.length > 0) {
-        return users.map((u) => ({
-          id: u.id,
-          name: u.fullName,
-          email: u.email,
-          phone: u.phone,
-          role: u.role.toLowerCase() as UserRole,
-          district: u.district || undefined,
-          organization: u.organization || undefined,
-          avatarUrl: u.avatarUrl || undefined,
-        }));
-      }
-    } catch {
-      // DB offline fallback
+      return users.map((u) => ({
+        id: u.id,
+        name: u.fullName,
+        email: u.email,
+        phone: u.phone,
+        role: u.role.toLowerCase() as UserRole,
+        district: u.district || undefined,
+        organization: u.organization || undefined,
+        avatarUrl: u.avatarUrl || undefined,
+      }));
+    } catch (err: any) {
+      console.error("[userRepository] Database error in listAllUsers:", err.message);
+      throw new Error(`Database error while listing users: ${err.message}`);
     }
   }
 

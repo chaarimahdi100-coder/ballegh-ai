@@ -1,4 +1,4 @@
-import { prisma, isDatabaseConfigured } from "@/lib/db";
+import { prisma, getIsDatabaseConfigured } from "@/lib/db";
 import { INITIAL_DEMO_REPORTS } from "@/lib/demo/reports";
 import { analyzeReportTriage } from "@/lib/services/aiService";
 import type {
@@ -23,49 +23,48 @@ export interface ReportFilterOptions {
 }
 
 export async function listReports(filters: ReportFilterOptions = {}): Promise<Report[]> {
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
-    const where: Record<string, unknown> = {};
+      const where: Record<string, unknown> = {};
 
-    if (filters.category) {
-      where.category = filters.category.toUpperCase();
-    }
-    if (filters.status) {
-      where.status = filters.status.toUpperCase();
-    }
-    if (filters.district) {
-      where.district = { contains: filters.district, mode: "insensitive" };
-    }
-    if (filters.submittedById) {
-      where.submittedById = filters.submittedById;
-    }
+      if (filters.category) {
+        where.category = filters.category.toUpperCase();
+      }
+      if (filters.status) {
+        where.status = filters.status.toUpperCase();
+      }
+      if (filters.district) {
+        where.district = { contains: filters.district, mode: "insensitive" };
+      }
+      if (filters.submittedById) {
+        where.submittedById = filters.submittedById;
+      }
 
-    const dbReports = await prisma.report.findMany({
-      where,
-      include: {
-        aiAnalysis: true,
-        humanReview: {
-          include: { reviewedBy: true },
+      const dbReports = await prisma.report.findMany({
+        where,
+        include: {
+          aiAnalysis: true,
+          humanReview: {
+            include: { reviewedBy: true },
+          },
+          photos: true,
+          timeline: {
+            orderBy: { timestamp: "asc" },
+          },
+          submittedBy: true,
+          assignedService: true,
         },
-        photos: true,
-        timeline: {
-          orderBy: { timestamp: "asc" },
-        },
-        submittedBy: true,
-        assignedService: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      });
 
-    if (dbReports.length > 0) {
       return dbReports.map(mapPrismaToDomainReport);
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in listReports:", err.message);
+      throw new Error(`Database error while listing reports: ${err.message}`);
     }
-  } catch {
-    // Database offline — fallback
-  }
   }
 
-  // Filter in-memory
+  // Filter in-memory ONLY when database is not configured
   return inMemoryReports.filter((r) => {
     if (filters.category && r.category !== filters.category) return false;
     if (filters.status && r.status !== filters.status) return false;
@@ -87,7 +86,7 @@ export async function listReports(filters: ReportFilterOptions = {}): Promise<Re
 }
 
 export async function getReportById(id: string): Promise<Report | null> {
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
       const r = await prisma.report.findUnique({
         where: { id },
@@ -108,8 +107,10 @@ export async function getReportById(id: string): Promise<Report | null> {
       if (r) {
         return mapPrismaToDomainReport(r);
       }
-    } catch {
-      // DB offline
+      return null;
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in getReportById:", err.message);
+      throw new Error(`Database error while retrieving report: ${err.message}`);
     }
   }
 
@@ -228,8 +229,26 @@ export async function createReport(data: {
     ],
   };
 
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
+      // Ensure the author exists in the DB so foreign key constraint is satisfied
+      let author = await prisma.user.findUnique({ where: { id: data.submittedBy.id } });
+      if (!author) {
+        const citizenEmail = `${data.submittedBy.id}@ballegh-citizen.local`;
+        author = await prisma.user.upsert({
+          where: { email: citizenEmail },
+          update: { fullName: data.submittedBy.name, phone: data.submittedBy.phone },
+          create: {
+            id: data.submittedBy.id,
+            email: citizenEmail,
+            fullName: data.submittedBy.name,
+            phone: data.submittedBy.phone,
+            passwordHash: "MANAGED_ACCOUNT",
+            role: "CITIZEN",
+          },
+        });
+      }
+
       const created = await prisma.report.create({
         data: {
           id: newReport.id,
@@ -246,7 +265,7 @@ export async function createReport(data: {
           latitude: lat,
           longitude: lng,
           landmark: data.landmark,
-          submittedById: data.submittedBy.id,
+          submittedById: author.id,
           photos: {
             create: [
               {
@@ -288,14 +307,20 @@ export async function createReport(data: {
             ],
           },
         },
+        include: {
+          aiAnalysis: true,
+          humanReview: { include: { reviewedBy: true } },
+          photos: true,
+          timeline: { orderBy: { timestamp: "asc" } },
+          submittedBy: true,
+          assignedService: true,
+        },
       });
 
-      if (created) {
-        inMemoryReports = [newReport, ...inMemoryReports];
-        return newReport;
-      }
-    } catch {
-      // Prisma offline
+      return mapPrismaToDomainReport(created);
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in createReport:", err.message);
+      throw new Error(`Database error while creating report: ${err.message}`);
     }
   }
 
@@ -329,8 +354,26 @@ export async function updateHumanReview(
     },
   };
 
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
+      // Ensure reviewing agent user exists in DB
+      let agentUser = await prisma.user.findUnique({ where: { id: agent.id } });
+      if (!agentUser) {
+        const agentEmail = `${agent.id}@commune-tunis.gov.tn`;
+        agentUser = await prisma.user.upsert({
+          where: { email: agentEmail },
+          update: { fullName: agent.name },
+          create: {
+            id: agent.id,
+            email: agentEmail,
+            fullName: agent.name,
+            phone: "+216 71 340 000",
+            passwordHash: "MANAGED_ACCOUNT",
+            role: "MUNICIPAL_AGENT",
+          },
+        });
+      }
+
       await prisma.humanReview.upsert({
         where: { reportId },
         update: {
@@ -341,11 +384,11 @@ export async function updateHumanReview(
             : undefined,
           adjustedSeverity: modifications?.severity,
           adjustedPriority: modifications?.priority,
-          reviewedById: agent.id,
+          reviewedById: agentUser.id,
         },
         create: {
           reportId,
-          reviewedById: agent.id,
+          reviewedById: agentUser.id,
           decision: decision.toUpperCase() as "ACCEPTED" | "MODIFIED" | "REJECTED",
           decisionNotes: notes,
           adjustedCategory: modifications?.category
@@ -362,7 +405,7 @@ export async function updateHumanReview(
           status: newStatus.toUpperCase() as "HUMAN_VALIDATED" | "REJECTED",
           timeline: {
             create: {
-              authorId: agent.id,
+              authorId: agentUser.id,
               authorName: agent.name,
               authorRole: "MUNICIPAL_AGENT",
               status: newStatus.toUpperCase() as "HUMAN_VALIDATED" | "REJECTED",
@@ -372,12 +415,15 @@ export async function updateHumanReview(
           },
         },
       });
-    } catch {
-      // DB offline fallback
+
+      return getReportById(reportId);
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in updateHumanReview:", err.message);
+      throw new Error(`Database error while updating human review: ${err.message}`);
     }
   }
 
-  // Update in-memory
+  // Update in-memory ONLY when database is not configured
   inMemoryReports = inMemoryReports.map((r) => {
     if (r.id !== reportId) return r;
     return {
@@ -419,7 +465,7 @@ export async function advanceReportStatus(
     },
   };
 
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
       await prisma.report.update({
         where: { id: reportId },
@@ -429,7 +475,6 @@ export async function advanceReportStatus(
           officialEmailSentAt: status === "forwarded" ? new Date() : undefined,
           timeline: {
             create: {
-              authorId: agent.id,
               authorName: agent.name,
               authorRole: "MUNICIPAL_AGENT",
               status: status.toUpperCase() as "FORWARDED" | "IN_PROGRESS" | "RESOLVED",
@@ -439,11 +484,15 @@ export async function advanceReportStatus(
           },
         },
       });
-    } catch {
-      // DB offline fallback
+
+      return getReportById(reportId);
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in advanceReportStatus:", err.message);
+      throw new Error(`Database error while advancing report status: ${err.message}`);
     }
   }
 
+  // Update in-memory ONLY when database is not configured
   inMemoryReports = inMemoryReports.map((r) => {
     if (r.id !== reportId) return r;
     return {
@@ -477,7 +526,7 @@ export async function confirmCitizenResolution(
     },
   };
 
-  if (isDatabaseConfigured) {
+  if (getIsDatabaseConfigured()) {
     try {
       await prisma.report.update({
         where: { id: reportId },
@@ -486,7 +535,6 @@ export async function confirmCitizenResolution(
           resolutionConfirmedByCitizen: true,
           timeline: {
             create: {
-              authorId: citizen.id,
               authorName: citizen.name,
               authorRole: "CITIZEN",
               status: "RESOLVED",
@@ -496,11 +544,15 @@ export async function confirmCitizenResolution(
           },
         },
       });
-    } catch {
-      // DB offline fallback
+
+      return getReportById(reportId);
+    } catch (err: any) {
+      console.error("[reportRepository] Database error in confirmCitizenResolution:", err.message);
+      throw new Error(`Database error while confirming resolution: ${err.message}`);
     }
   }
 
+  // Update in-memory ONLY when database is not configured
   inMemoryReports = inMemoryReports.map((r) => {
     if (r.id !== reportId) return r;
     return {
