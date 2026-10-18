@@ -154,6 +154,7 @@ export async function createReport(data: {
     streetAddress: data.streetAddress,
     referenceNumber: refNum,
     photoUrl: data.photoUrl,
+    photoStorage: data.photoStorage,
   });
 
   const now = new Date().toISOString();
