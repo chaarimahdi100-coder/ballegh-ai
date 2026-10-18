@@ -25,6 +25,12 @@ function loadEnvLocal(): void {
 
 loadEnvLocal();
 
+import { resolveSupabaseUrl } from "./test-db-connection";
+
+if (process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = resolveSupabaseUrl(process.env.DATABASE_URL, true);
+}
+
 const args = process.argv.slice(2).join(" ");
 if (!args) {
   console.error("Usage: tsx scripts/prisma-cli.ts <prisma-command>");

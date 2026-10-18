@@ -59,11 +59,13 @@ export async function GET(
     const isStaff = session?.role === "municipal_agent" || session?.role === "admin";
     const isAuthor = session?.userId === report.submittedBy.id;
 
-    // Protection de la vie privée : masquage des coordonnées pour les tiers
+    // Protection de la vie privée et masquage des chemins de stockage internes
+    const safePhotos = report.photos.map(({ storagePath: _sp, ...photo }) => photo);
     const sanitizedReport = isStaff || isAuthor
-      ? report
+      ? { ...report, photos: safePhotos }
       : {
           ...report,
+          photos: safePhotos,
           submittedBy: {
             ...report.submittedBy,
             phone: "+216 ** *** ***",

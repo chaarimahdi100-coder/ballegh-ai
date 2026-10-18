@@ -1,6 +1,7 @@
 import { prisma, getIsDatabaseConfigured } from "@/lib/db";
 import { INITIAL_DEMO_REPORTS } from "@/lib/demo/reports";
 import { analyzeReportTriage } from "@/lib/services/aiService";
+import { deletePhotoFromStorage } from "@/lib/storage/supabaseStorage";
 import type {
   Report,
   IssueCategory,
@@ -129,6 +130,11 @@ export async function createReport(data: {
   longitude?: number;
   landmark?: string;
   photoUrl?: string;
+  photoStorage?: {
+    storagePath: string;
+    mimeType: string;
+    fileSizeBytes: number;
+  };
   submittedBy: {
     id: string;
     name: string;
@@ -151,9 +157,32 @@ export async function createReport(data: {
   });
 
   const now = new Date().toISOString();
+  const reportId = data.id || `rep-${Date.now().toString().slice(-4)}`;
+
+  const defaultPhotoUrl =
+    data.category === "pothole"
+      ? "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80"
+      : data.category === "lighting"
+      ? "https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80"
+      : "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80";
+
+  const resolvedPhoto = data.photoStorage
+    ? {
+        id: `ph-${Date.now()}`,
+        url: `/api/reports/${reportId}/photo`,
+        storagePath: data.photoStorage.storagePath,
+        mimeType: data.photoStorage.mimeType,
+        fileSizeBytes: data.photoStorage.fileSizeBytes,
+        uploadedAt: now,
+      }
+    : {
+        id: `ph-${Date.now()}`,
+        url: data.photoUrl || defaultPhotoUrl,
+        uploadedAt: now,
+      };
 
   const newReport: Report = {
-    id: data.id || `rep-${Date.now().toString().slice(-4)}`,
+    id: reportId,
     referenceNumber: refNum,
     title: { fr: data.title, ar: data.title },
     description: { fr: data.description, ar: data.description },
@@ -173,19 +202,7 @@ export async function createReport(data: {
       longitude: lng,
       landmark: data.landmark,
     },
-    photos: [
-      {
-        id: `ph-${Date.now()}`,
-        url:
-          data.photoUrl ||
-          (data.category === "pothole"
-            ? "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80"
-            : data.category === "lighting"
-            ? "https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80"
-            : "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80"),
-        uploadedAt: now,
-      },
-    ],
+    photos: [resolvedPhoto],
     submittedBy: {
       id: data.submittedBy.id,
       name: data.submittedBy.name,
@@ -270,6 +287,9 @@ export async function createReport(data: {
             create: [
               {
                 url: newReport.photos[0].url,
+                storagePath: newReport.photos[0].storagePath,
+                mimeType: newReport.photos[0].mimeType,
+                fileSizeBytes: newReport.photos[0].fileSizeBytes,
               },
             ],
           },
@@ -319,6 +339,10 @@ export async function createReport(data: {
 
       return mapPrismaToDomainReport(created);
     } catch (err: any) {
+      if (data.photoStorage?.storagePath) {
+        // Prevent orphaned storage files if database transaction fails
+        await deletePhotoFromStorage(data.photoStorage.storagePath).catch(() => {});
+      }
       console.error("[reportRepository] Database error in createReport:", err.message);
       throw new Error(`Database error while creating report: ${err.message}`);
     }
@@ -591,6 +615,9 @@ function mapPrismaToDomainReport(r: any): Report {
     photos: r.photos.map((p: any) => ({
       id: p.id,
       url: p.url,
+      storagePath: p.storagePath || undefined,
+      mimeType: p.mimeType || undefined,
+      fileSizeBytes: p.fileSizeBytes || undefined,
       caption: p.caption || undefined,
       uploadedAt: p.uploadedAt.toISOString(),
     })),

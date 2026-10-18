@@ -416,9 +416,11 @@ async function runPhase3Tests() {
   console.log("\n--- 6. Supabase PostgreSQL Live Database Verification ---");
 
   if (realDatabaseUrl) {
+    const { resolveSupabaseUrl } = await import("../scripts/test-db-connection");
+    const activeUrl = resolveSupabaseUrl(realDatabaseUrl, true);
     const { PrismaClient } = await import("@prisma/client");
     const livePrisma = new PrismaClient({
-      datasources: { db: { url: realDatabaseUrl } },
+      datasources: { db: { url: activeUrl } },
     });
 
     await test("Connects to Supabase PostgreSQL and queries seeded municipal services", async () => {

@@ -35,6 +35,12 @@ export default function NewReportPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadedStorage, setUploadedStorage] = useState<{
+    storagePath: string;
+    mimeType: string;
+    fileSizeBytes: number;
+  } | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const tunisDistricts = [
     "Bab Souika",
@@ -68,10 +74,12 @@ export default function NewReportPage() {
 
   const handleCategorySelect = (cat: IssueCategory) => {
     setCategory(cat);
-    setPhotoPreview(categoryPresets[cat].photo);
+    if (!uploadedStorage) {
+      setPhotoPreview(categoryPresets[cat].photo);
+    }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -96,6 +104,31 @@ export default function NewReportPage() {
       setError("Erreur lors de la lecture du fichier image.");
     };
     reader.readAsDataURL(file);
+
+    setIsUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        if (body.photo) {
+          setUploadedStorage(body.photo);
+          setError(null);
+        }
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        setError(errBody.error || "Échec du téléversement de la photo vers le stockage sécurisé.");
+      }
+    } catch {
+      setError("Erreur réseau lors du téléversement de la photo.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,7 +150,8 @@ export default function NewReportPage() {
         description: description || (language === "ar" ? "بلاغ فوري مسجل عبر التطبيق." : "Signalement citoyen enregistré via l'application."),
         district,
         streetAddress: streetAddress || "Rue principale, Tunis",
-        photoUrl: photoPreview,
+        photoStorage: uploadedStorage || undefined,
+        photoUrl: uploadedStorage ? undefined : photoPreview,
       });
 
       router.push(`/citizen/reports/${newId}`);
@@ -248,10 +282,16 @@ export default function NewReportPage() {
                 />
                 <Camera className="w-6 h-6 text-brand-teal-600 mx-auto mb-1" />
                 <span className="text-xs text-slate-800 dark:text-slate-200 font-bold block">
-                  Choisir une photo de l'incident ou photographier
+                  {isUploadingPhoto
+                    ? (language === "ar" ? "جاري الرفع الآمن إلى السحابة..." : "Téléversement sécurisé vers Supabase Storage...")
+                    : uploadedStorage
+                    ? (language === "ar" ? "✓ تم حفظ الصورة في التخزين الآمن" : "✓ Photo enregistrée dans le stockage sécurisé")
+                    : (language === "ar" ? "اختيار صورة البلاغ أو التقاطها" : "Choisir une photo de l'incident ou photographier")}
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  Fichiers acceptés : JPG, PNG, WebP (Max 5 Mo)
+                  {uploadedStorage
+                    ? `${(uploadedStorage.fileSizeBytes / 1024).toFixed(0)} Ko • Stockage privé chiffré`
+                    : "Fichiers acceptés : JPG, PNG, WebP (Max 5 Mo)"}
                 </span>
               </label>
 

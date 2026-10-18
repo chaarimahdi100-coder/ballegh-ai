@@ -49,6 +49,15 @@ export interface DatabaseInspectionResult {
   isCleanDatabase?: boolean;
 }
 
+export function resolveSupabaseUrl(url?: string, forcePooler = false): string {
+  if (!url) return "";
+  if (!forcePooler && !url.includes("db.") && url.includes(".supabase.co")) return url;
+  const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432\/([a-zA-Z0-9_-]+)(.*)/);
+  if (!match) return url;
+  const [, user, pass, ref, db, rest] = match;
+  return `postgresql://${user}.${ref}:${pass}@aws-0-eu-west-1.pooler.supabase.com:5432/${db}${rest || ""}`;
+}
+
 export async function inspectDatabaseConnection(): Promise<DatabaseInspectionResult> {
   const rawUrl = process.env.DATABASE_URL;
   const sanitizedUrl = sanitizeDatabaseUrl(rawUrl);
@@ -61,7 +70,7 @@ export async function inspectDatabaseConnection(): Promise<DatabaseInspectionRes
     };
   }
 
-  const prisma = new PrismaClient({
+  let prisma = new PrismaClient({
     datasources: {
       db: { url: rawUrl },
     },
@@ -69,8 +78,30 @@ export async function inspectDatabaseConnection(): Promise<DatabaseInspectionRes
   });
 
   try {
-    // 1. Test basic connectivity
-    await prisma.$connect();
+    // 1. Test basic connectivity (with automatic IPv4 pooler fallback if direct IPv6 is unreachable)
+    try {
+      await prisma.$connect();
+    } catch (connErr: any) {
+      if (
+        connErr.message.includes("Can't reach database server") ||
+        connErr.message.includes("ETIMEDOUT") ||
+        connErr.message.includes("ENOTFOUND")
+      ) {
+        const poolerUrl = resolveSupabaseUrl(rawUrl, true);
+        if (poolerUrl !== rawUrl) {
+          await prisma.$disconnect().catch(() => {});
+          prisma = new PrismaClient({
+            datasources: { db: { url: poolerUrl } },
+            log: ["error"],
+          });
+          await prisma.$connect();
+        } else {
+          throw connErr;
+        }
+      } else {
+        throw connErr;
+      }
+    }
 
     // 2. Query DB info
     const dbInfoRaw = await prisma.$queryRaw<Array<{ db_name: string; pg_version: string }>>`
@@ -144,7 +175,7 @@ export async function testReportPersistence(): Promise<{
     };
   }
 
-  const prisma = new PrismaClient({
+  let prisma = new PrismaClient({
     datasources: { db: { url: rawUrl } },
     log: ["error"],
   });
@@ -154,7 +185,29 @@ export async function testReportPersistence(): Promise<{
   let testReportId: string | null = null;
 
   try {
-    await prisma.$connect();
+    try {
+      await prisma.$connect();
+    } catch (connErr: any) {
+      if (
+        connErr.message.includes("Can't reach database server") ||
+        connErr.message.includes("ETIMEDOUT") ||
+        connErr.message.includes("ENOTFOUND")
+      ) {
+        const poolerUrl = resolveSupabaseUrl(rawUrl, true);
+        if (poolerUrl !== rawUrl) {
+          await prisma.$disconnect().catch(() => {});
+          prisma = new PrismaClient({
+            datasources: { db: { url: poolerUrl } },
+            log: ["error"],
+          });
+          await prisma.$connect();
+        } else {
+          throw connErr;
+        }
+      } else {
+        throw connErr;
+      }
+    }
 
     // 1. Create or get test author
     const testUser = await prisma.user.upsert({

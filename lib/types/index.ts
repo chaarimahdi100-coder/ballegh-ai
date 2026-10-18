@@ -107,6 +107,9 @@ export interface Report {
   photos: {
     id: string;
     url: string;
+    storagePath?: string;
+    mimeType?: string;
+    fileSizeBytes?: number;
     caption?: string;
     uploadedAt: string;
   }[];

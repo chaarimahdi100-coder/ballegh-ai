@@ -534,9 +534,11 @@ async function runPhase4Tests() {
   // ---------------------------------------------------------
   console.log("\n--- Live Supabase Database Health Check ---");
   if (realDatabaseUrl) {
+    const { resolveSupabaseUrl } = await import("../scripts/test-db-connection");
+    const activeUrl = resolveSupabaseUrl(realDatabaseUrl, true);
     const { PrismaClient } = await import("@prisma/client");
     const livePrisma = new PrismaClient({
-      datasources: { db: { url: realDatabaseUrl } },
+      datasources: { db: { url: activeUrl } },
     });
 
     await test("Supabase PostgreSQL responds to query and maintains reference tables", async () => {

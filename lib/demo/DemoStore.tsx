@@ -21,6 +21,11 @@ export interface DemoContextType {
     district: string;
     streetAddress: string;
     photoUrl?: string;
+    photoStorage?: {
+      storagePath: string;
+      mimeType: string;
+      fileSizeBytes: number;
+    };
   }) => Promise<string>;
   updateHumanReview: (
     reportId: string,
@@ -147,6 +152,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     district: string;
     streetAddress: string;
     photoUrl?: string;
+    photoStorage?: {
+      storagePath: string;
+      mimeType: string;
+      fileSizeBytes: number;
+    };
   }): Promise<string> => {
     try {
       const res = await fetch("/api/reports", {
@@ -189,7 +199,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       photos: [
         {
           id: `ph-${Date.now()}`,
-          url: data.photoUrl || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80",
+          url: data.photoStorage
+            ? `/api/reports/${fallbackId}/photo`
+            : data.photoUrl || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80",
+          storagePath: data.photoStorage?.storagePath,
+          mimeType: data.photoStorage?.mimeType,
+          fileSizeBytes: data.photoStorage?.fileSizeBytes,
           uploadedAt: new Date().toISOString(),
         },
       ],

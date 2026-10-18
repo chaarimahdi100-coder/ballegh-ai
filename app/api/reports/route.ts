@@ -18,6 +18,13 @@ const createReportSchema = z.object({
   longitude: z.number().optional(),
   landmark: z.string().optional(),
   photoUrl: z.string().optional(),
+  photoStorage: z
+    .object({
+      storagePath: z.string(),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      fileSizeBytes: z.number().max(5 * 1024 * 1024),
+    })
+    .optional(),
 });
 
 export async function GET(request: Request) {
@@ -50,13 +57,15 @@ export async function GET(request: Request) {
 
     const isStaff = session?.role === "municipal_agent" || session?.role === "admin";
 
-    // Protection de la vie privée : masquage des coordonnées des citoyens déclarants
+    // Protection de la vie privée et masquage des chemins de stockage internes
     const sanitizedReports = reports.map((r) => {
+      const publicPhotos = r.photos.map(({ storagePath: _sp, ...photo }) => photo);
       if (isStaff || (session && r.submittedBy.id === session.userId)) {
-        return r;
+        return { ...r, photos: publicPhotos };
       }
       return {
         ...r,
+        photos: publicPhotos,
         submittedBy: {
           ...r.submittedBy,
           phone: "+216 ** *** ***",
@@ -110,8 +119,13 @@ export async function POST(request: Request) {
       },
     });
 
+    const sanitizedReport = {
+      ...newReport,
+      photos: newReport.photos.map(({ storagePath: _sp, ...photo }) => photo),
+    };
+
     return NextResponse.json(
-      { success: true, message: "Signalement créé et analysé par l'IA", report: newReport },
+      { success: true, message: "Signalement créé et analysé par l'IA", report: sanitizedReport },
       { status: 201 }
     );
   } catch (err: any) {

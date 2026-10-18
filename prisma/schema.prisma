@@ -173,12 +173,15 @@ model TimelineEvent {
 }
 
 model ReportPhoto {
-  id         String   @id @default(cuid())
-  reportId   String
-  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  url        String
-  caption    String?
-  uploadedAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  reportId      String
+  report        Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  url           String
+  storagePath   String?
+  mimeType      String?
+  fileSizeBytes Int?
+  caption       String?
+  uploadedAt    DateTime @default(now())
 
   @@map("report_photos")
 }
