@@ -34,6 +34,16 @@ export function Header({ roleMode }: HeaderProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    }
+    localStorage.removeItem("ballegh_active_role");
+    window.location.href = "/login";
+  };
+
   // Infer mode from pathname if not provided
   const mode =
     roleMode ||
@@ -161,13 +171,14 @@ export function Header({ roleMode }: HeaderProps) {
                     : "Administrateur"}
                 </span>
               </div>
-              <Link
-                href="/login"
+              <button
+                type="button"
+                onClick={handleLogout}
                 title={t("nav.logout")}
                 className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-              </Link>
+              </button>
             </div>
           )}
 
@@ -232,14 +243,17 @@ export function Header({ roleMode }: HeaderProps) {
                   </p>
                   <p className="text-xs text-slate-500">{activeUser.email}</p>
                 </div>
-                <Link
-                  href="/login"
-                  onClick={() => setMobileMenuOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
                   className="inline-flex items-center gap-1 text-xs text-rose-600 font-semibold"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>{t("nav.logout")}</span>
-                </Link>
+                </button>
               </div>
             )}
           </div>

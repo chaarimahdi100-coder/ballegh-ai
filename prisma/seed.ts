@@ -1,5 +1,29 @@
 import { PrismaClient, UserRole, IssueCategory, ReportStatus, UrgencyLevel, HumanDecisionType, TimelineAuthorRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import * as path from "path";
+import * as fs from "fs";
+
+function loadEnvLocal(): void {
+  const envLocalPath = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envLocalPath)) {
+    const content = fs.readFileSync(envLocalPath, "utf-8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        process.env[key] = val;
+      }
+    }
+  }
+}
+
+loadEnvLocal();
 
 const prisma = new PrismaClient();
 
