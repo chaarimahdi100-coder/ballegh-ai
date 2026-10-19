@@ -27,6 +27,7 @@ const patchActionSchema = z.discriminatedUnion("action", [
     action: z.literal("send_email"),
     customSubject: z.string().optional(),
     customBody: z.string().optional(),
+    forceResend: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("advance_status"),
@@ -153,6 +154,23 @@ export async function PATCH(
         );
       }
 
+      // Règle d'idempotence stricte : blocage des envois dupliqués sans réexpédition forcée
+      if (report.officialEmailSent && !data.forceResend) {
+        return NextResponse.json(
+          {
+            error: "Transmission officielle déjà effectuée pour ce signalement. Réexpédition bloquée par mesure d'idempotence.",
+            code: "DUPLICATE_DISPATCH_BLOCKED",
+            dispatch: {
+              success: false,
+              transportStatus: "DUPLICATE_BLOCKED",
+              deliveryState: "duplicate_blocked",
+              notes: "Transmission officielle déjà effectuée pour ce signalement. Réexpédition bloquée par mesure d'idempotence.",
+            },
+          },
+          { status: 409 }
+        );
+      }
+
       // Appel du service d'expédition officiel (avec marquage explicite du transport)
       const dispatchResult = await dispatchOfficialEmail({
         report,
@@ -160,7 +178,29 @@ export async function PATCH(
         agentRole: session.role,
         customSubject: data.customSubject,
         customBody: data.customBody,
+        forceResend: data.forceResend,
       });
+
+      if (!dispatchResult.success) {
+        if (dispatchResult.transportStatus === "DUPLICATE_BLOCKED") {
+          return NextResponse.json(
+            {
+              error: dispatchResult.notes,
+              code: "DUPLICATE_DISPATCH_BLOCKED",
+              dispatch: dispatchResult,
+            },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json(
+          {
+            error: dispatchResult.notes,
+            code: "EMAIL_DISPATCH_FAILED",
+            dispatch: dispatchResult,
+          },
+          { status: 502 }
+        );
+      }
 
       const updated = await advanceReportStatus(
         id,
