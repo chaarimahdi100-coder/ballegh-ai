@@ -304,8 +304,10 @@ Instructions strictes :
       setTimeout(() => reject(new Error("Timeout dépassé lors de l'appel Gemini API (10s)")), 10000)
     );
 
+    const targetModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+
     const callPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: targetModel,
       contents,
       config: {
         responseMimeType: "application/json",
@@ -413,7 +415,7 @@ Instructions strictes :
         recipientDepartment: serviceMap.dept,
         recipientEmail: serviceMap.email,
         subject: `[${resData.category.toUpperCase()} - ${data.referenceNumber}] Diagnostic Gemini : ${data.district}`,
-        body: `Signalement ${data.referenceNumber} enregistré à ${data.streetAddress}, ${data.district}.\n\nDescription citoyenne : "${data.description}"\n\nDiagnostic IA (Gemini 2.5 Flash) : Gravité ${resData.estimatedSeverity}/3, Priorité estimée ${resData.priorityScore}/100.\nJustification : ${resData.severityRationaleFr}\n\nEn attente de validation explicite par l'agent municipal référent.`,
+        body: `Signalement ${data.referenceNumber} enregistré à ${data.streetAddress}, ${data.district}.\n\nDescription citoyenne : "${data.description}"\n\nDiagnostic IA (${targetModel}) : Gravité ${resData.estimatedSeverity}/3, Priorité estimée ${resData.priorityScore}/100.\nJustification : ${resData.severityRationaleFr}\n\nEn attente de validation explicite par l'agent municipal référent.`,
       },
       duplicateDetection: {
         isLikelyDuplicate: resData.duplicateDetection?.isLikelyDuplicate || false,
@@ -427,7 +429,7 @@ Instructions strictes :
       metadata: {
         isSimulated: false,
         provider: "Google Gemini Vision",
-        model: "gemini-2.5-flash",
+        model: targetModel,
         configured: true,
       },
     };

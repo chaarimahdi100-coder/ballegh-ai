@@ -533,18 +533,24 @@ async function runTestSuite() {
   console.log("\n--- 12. Integration Status & Boundary Verification ---");
 
   await test("AI Service clearly declares simulation mode when GEMINI_API_KEY is not configured", async () => {
-    const triage = await analyzeReportTriage({
-      category: "pothole",
-      title: "Test AI diagnostic",
-      description: "Nid-de-poule test.",
-      district: "Centre-Ville",
-      streetAddress: "Avenue de France",
-      referenceNumber: "BLG-TEST-001",
-    });
+    const origKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const triage = await analyzeReportTriage({
+        category: "pothole",
+        title: "Test AI diagnostic",
+        description: "Nid-de-poule test.",
+        district: "Centre-Ville",
+        streetAddress: "Avenue de France",
+        referenceNumber: "BLG-TEST-001",
+      });
 
-    assert.equal(triage.metadata.isSimulated, true, "Must flag simulation when key is missing");
-    assert.equal(triage.metadata.configured, false);
-    assert.equal(triage.metadata.provider, "Ballegh Deterministic Taxonomy Classifier");
+      assert.equal(triage.metadata.isSimulated, true, "Must flag simulation when key is missing");
+      assert.equal(triage.metadata.configured, false);
+      assert.equal(triage.metadata.provider, "Ballegh Deterministic Taxonomy Classifier");
+    } finally {
+      if (origKey) process.env.GEMINI_API_KEY = origKey;
+    }
   });
 
   await test("Email Service clearly declares draft mode when SMTP/Resend is not configured", async () => {
