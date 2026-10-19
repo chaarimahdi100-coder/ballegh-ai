@@ -57,8 +57,6 @@ export async function dispatchOfficialEmail(params: {
   forceResend?: boolean;
 }): Promise<EmailDispatchResult> {
   const now = new Date().toISOString();
-  const draft = params.report.aiAnalysis.generatedEmailDraft;
-
   // 1. Contrôle d'éligibilité et approbation humaine obligatoire
   const isAgent = params.agentRole === "municipal_agent" || params.agentRole === "admin";
   if (!isAgent) {
@@ -75,8 +73,13 @@ export async function dispatchOfficialEmail(params: {
     throw new Error("Gating : Transmission impossible sans validation humaine préalable par un agent municipal.");
   }
 
+  const draft = params.report.aiAnalysis?.generatedEmailDraft;
+  if (!draft) {
+    throw new Error("Le signalement ne comporte pas de projet de courriel technique généré.");
+  }
+
   // 2. Validation du destinataire et du contenu
-  const recipient = draft.recipientEmail.trim();
+  const recipient = draft.recipientEmail?.trim() || "";
   const parsedEmail = emailRecipientSchema.safeParse(recipient);
   if (!parsedEmail.success) {
     throw new Error(`Adresse de destination invalide pour le service technique : "${recipient}"`);

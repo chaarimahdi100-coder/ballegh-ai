@@ -15,6 +15,7 @@
     "test:phase5": "tsx tests/phase5.test.ts",
     "test:phase6": "tsx tests/phase6.test.ts",
     "test:gemini": "tsx scripts/test-gemini-live.ts",
+    "verify:integrations": "tsx scripts/verify-real-integration.ts",
     "migrate:photos": "tsx scripts/migrate-photos-to-storage.ts",
     "test:live": "tsx scripts/verify-e2e-live.ts",
     "prisma:generate": "prisma generate",
