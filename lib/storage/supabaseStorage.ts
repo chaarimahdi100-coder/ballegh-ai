@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 export const BUCKET_NAME = "ballegh-reports";
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -12,13 +14,37 @@ const inMemoryStorage = new Map<
   { buffer: Buffer; mimeType: AllowedMimeType; fileSizeBytes: number; uploadedAt: string }
 >();
 
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.DATABASE_URL) {
+  try {
+    const envLocalPath = path.resolve(process.cwd(), ".env.local");
+    if (fs.existsSync(envLocalPath)) {
+      const content = fs.readFileSync(envLocalPath, "utf-8");
+      for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx !== -1) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          let val = trimmed.slice(eqIdx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (!process.env[key]) process.env[key] = val;
+        }
+      }
+    }
+  } catch {}
+}
+
 function getSupabaseConfig(): { url: string; serviceRoleKey: string } | null {
   let url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url && process.env.DATABASE_URL) {
-    // Attempt to extract project ref from DATABASE_URL
-    const match = process.env.DATABASE_URL.match(/@(?:db\.)?([a-z0-9]+)\.supabase\.co/);
+    // Attempt to extract project ref from DATABASE_URL (direct host or pooler username)
+    const match =
+      process.env.DATABASE_URL.match(/@(?:db\.)?([a-z0-9]+)\.supabase\.co/) ||
+      process.env.DATABASE_URL.match(/postgres\.([a-z0-9]+):/);
     if (match?.[1]) {
       url = `https://${match[1]}.supabase.co`;
     }
