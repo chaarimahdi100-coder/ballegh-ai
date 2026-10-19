@@ -312,7 +312,7 @@ export async function createReport(data: {
           timeline: {
             create: [
               {
-                authorName: data.submittedBy.name,
+                authorName: data.submittedBy.name || "Citoyen",
                 authorRole: "CITIZEN",
                 status: "RECEIVED",
                 commentFr: "Signalement initial soumis via l'interface citoyenne.",
@@ -500,7 +500,7 @@ export async function advanceReportStatus(
           officialEmailSentAt: status === "forwarded" ? new Date() : undefined,
           timeline: {
             create: {
-              authorName: agent.name,
+              authorName: agent.name || "Agent Municipal",
               authorRole: "MUNICIPAL_AGENT",
               status: status.toUpperCase() as "FORWARDED" | "IN_PROGRESS" | "RESOLVED",
               commentFr: timelineEntry.comment.fr,
@@ -538,6 +538,17 @@ export async function confirmCitizenResolution(
   reportId: string,
   citizen: { id: string; name: string }
 ): Promise<Report | null> {
+  const existing = await getReportById(reportId);
+  if (!existing) {
+    return null;
+  }
+  if (existing.submittedBy.id !== citizen.id) {
+    throw new Error("Seul l'auteur du signalement peut confirmer sa résolution sur le terrain");
+  }
+  if (existing.status !== "resolved") {
+    throw new Error("La confirmation citoyenne requiert que l'intervention municipale ait préalablement été déclarée résolue.");
+  }
+
   const now = new Date().toISOString();
   const timelineEntry = {
     id: `tl-conf-${Date.now()}`,
