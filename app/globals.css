@@ -24,6 +24,7 @@ body {
 [dir="rtl"] {
   text-align: right;
   direction: rtl;
+  font-family: var(--font-arabic), system-ui, sans-serif;
 }
 
 [dir="ltr"] {

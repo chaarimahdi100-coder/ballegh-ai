@@ -5,7 +5,7 @@ const DEFAULT_SECRET = "ballegh-ai-tunis-civic-secret-key-minimum-32-chars-2026-
 
 async function verifyToken(token: string) {
   try {
-    const secret = process.env.AUTH_SECRET || DEFAULT_SECRET;
+    const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || DEFAULT_SECRET;
     const key = new TextEncoder().encode(secret);
     const { payload } = await jwtVerify(token, key, {
       algorithms: ["HS256"],

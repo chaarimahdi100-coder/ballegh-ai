@@ -15,7 +15,7 @@ export interface SessionPayload {
 const DEFAULT_SECRET = "ballegh-ai-tunis-civic-secret-key-minimum-32-chars-2026-secure";
 
 function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || DEFAULT_SECRET;
+  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || DEFAULT_SECRET;
   return new TextEncoder().encode(secret);
 }
 

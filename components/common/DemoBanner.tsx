@@ -39,7 +39,7 @@ export function DemoBanner() {
   return (
     <aside
       aria-label={t("common.demoBanner")}
-      className="bg-brand-navy-950 border-b border-brand-teal-900/50 text-white text-xs px-3 py-1.5 sticky top-0 z-50 shadow-sm"
+      className="bg-brand-navy-950 border-b border-brand-teal-900/50 text-white text-xs px-3 py-1.5 relative z-30 shadow-sm"
     >
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
         {/* Banner Notice */}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cairo } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n/I18nContext";
 import { DemoProvider } from "@/lib/demo/DemoStore";
@@ -8,6 +8,12 @@ import { DemoBanner } from "@/components/common/DemoBanner";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+const cairo = Cairo({
+  subsets: ["arabic", "latin"],
+  variable: "--font-arabic",
   display: "swap",
 });
 
@@ -27,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" dir="ltr" className={inter.variable}>
+    <html lang="fr" dir="ltr" className={`${inter.variable} ${cairo.variable}`}>
       <body className="min-h-screen bg-slate-50 font-sans antialiased text-slate-900 selection:bg-brand-teal-500 selection:text-white dark:bg-slate-950 dark:text-slate-50">
         <I18nProvider>
           <DemoProvider>

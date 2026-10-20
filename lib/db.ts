@@ -64,6 +64,4 @@ export function getIsDatabaseConfigured(): boolean {
 
 export const isDatabaseConfigured = getIsDatabaseConfigured();
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prismaGlobal = prisma;
-}
+globalThis.prismaGlobal = prisma;

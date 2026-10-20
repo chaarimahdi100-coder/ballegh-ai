@@ -19,12 +19,31 @@ export function Logo({
   size = "md",
   href = "/",
 }: LogoProps) {
-  const sizeClasses = {
-    sm: variant === "icon" ? "w-8 h-8" : "h-8 w-auto",
-    md: variant === "icon" ? "w-10 h-10" : "h-11 w-auto",
-    lg: variant === "icon" ? "w-14 h-14" : "h-16 w-auto",
+  const sizeConfig = {
+    sm: {
+      dim: 32,
+      svgClass: "w-8 h-8",
+      titleClass: "text-lg",
+      badgeClass: "text-[10px] px-1 py-0.5",
+      subClass: "text-[9px]",
+    },
+    md: {
+      dim: 40,
+      svgClass: "w-10 h-10",
+      titleClass: "text-xl",
+      badgeClass: "text-xs px-1.5 py-0.5",
+      subClass: "text-[10px]",
+    },
+    lg: {
+      dim: 56,
+      svgClass: "w-14 h-14",
+      titleClass: "text-2xl",
+      badgeClass: "text-xs px-2 py-0.5",
+      subClass: "text-xs",
+    },
   };
 
+  const current = sizeConfig[size];
   const isDark = theme === "dark";
 
   const content = (
@@ -32,10 +51,14 @@ export function Logo({
       {variant === "icon" ? (
         // Compact Icon
         <svg
+          width={current.dim}
+          height={current.dim}
           viewBox="0 0 100 100"
-          className={cn(sizeClasses[size], "transition-transform hover:scale-105")}
+          className={cn(current.svgClass, "shrink-0 transition-transform hover:scale-105")}
+          style={{ width: current.dim, height: current.dim, minWidth: current.dim, minHeight: current.dim }}
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
         >
           <defs>
             <linearGradient id="logoIconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -78,10 +101,14 @@ export function Logo({
         // Full Logo
         <div className="flex items-center gap-3">
           <svg
+            width={current.dim}
+            height={current.dim}
             viewBox="0 0 100 100"
-            className="w-10 h-10 shrink-0 transition-transform hover:scale-105"
+            className={cn(current.svgClass, "shrink-0 transition-transform hover:scale-105")}
+            style={{ width: current.dim, height: current.dim, minWidth: current.dim, minHeight: current.dim }}
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
           >
             <defs>
               <linearGradient id="logoFullGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -124,19 +151,21 @@ export function Logo({
             <div className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  "font-extrabold tracking-tight text-xl leading-none",
+                  "font-extrabold tracking-tight leading-none",
+                  current.titleClass,
                   isDark ? "text-white" : "text-brand-navy-900"
                 )}
               >
                 BALLEGH
               </span>
-              <span className="bg-brand-teal-600 text-white font-black text-xs px-1.5 py-0.5 rounded tracking-wide leading-none">
+              <span className={cn("bg-brand-teal-600 text-white font-black rounded tracking-wide leading-none", current.badgeClass)}>
                 AI
               </span>
             </div>
             <span
               className={cn(
-                "text-[10px] font-semibold tracking-wider uppercase mt-1",
+                "font-semibold tracking-wider uppercase mt-1",
+                current.subClass,
                 isDark ? "text-brand-teal-300" : "text-brand-navy-600"
               )}
             >

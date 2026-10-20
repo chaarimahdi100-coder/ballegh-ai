@@ -89,7 +89,7 @@ export function Header({ roleMode }: HeaderProps) {
       : publicLinks;
 
   return (
-    <header className="sticky top-[29px] z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-900/95">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-900/95">
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <div className="flex items-center gap-6">
@@ -152,8 +152,8 @@ export function Header({ roleMode }: HeaderProps) {
               </Link>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center gap-3 border-l border-slate-200 pl-3 dark:border-slate-800">
-              <div className="flex flex-col text-right">
+            <div className="hidden sm:flex items-center gap-3 border-s border-slate-200 ps-3 dark:border-slate-800">
+              <div className="flex flex-col text-start">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   {activeUser.name}
                 </span>
