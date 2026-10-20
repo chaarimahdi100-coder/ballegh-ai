@@ -167,17 +167,88 @@ async function run() {
     shouldNotContain: errorTokens,
   });
 
-  // 7. /municipal/dashboard
+  // Fetch a sample report ID for dynamic routes
+  const reportsRes = await requestHttp("/api/reports", "GET", undefined, agentCookie);
+  const reportsData = JSON.parse(reportsRes.body);
+  const sampleReportId = reportsData.reports && reportsData.reports.length > 0 ? reportsData.reports[0].id : "sample-id";
+
+  // 7. /citizen/reports/[id]
+  await verifyRoute(`Citizen Report Detail (${sampleReportId})`, `/citizen/reports/${sampleReportId}`, citizenCookie, {
+    shouldNotContain: errorTokens,
+  });
+
+  // 8. /municipal/dashboard
   await verifyRoute("Municipal Dashboard", "/municipal/dashboard", agentCookie, {
     shouldContain: ["Poste de Commandement Municipal"],
     shouldNotContain: errorTokens,
   });
 
-  // 8. /admin/dashboard
+  // 9. /municipal/reports
+  await verifyRoute("Municipal Reports Queue", "/municipal/reports", agentCookie, {
+    shouldContain: ["File des signalements"],
+    shouldNotContain: errorTokens,
+  });
+
+  // 10. /municipal/reports/[id]
+  await verifyRoute(`Municipal Report Review (${sampleReportId})`, `/municipal/reports/${sampleReportId}`, agentCookie, {
+    shouldNotContain: errorTokens,
+  });
+
+  // 11. /municipal/map
+  await verifyRoute("Municipal Map View", "/municipal/map", agentCookie, {
+    shouldContain: ["Cartographie des Incidents"],
+    shouldNotContain: errorTokens,
+  });
+
+  // 12. /admin/dashboard
   await verifyRoute("Admin Dashboard", "/admin/dashboard", adminCookie, {
     shouldContain: ["Supervision Administrative"],
     shouldNotContain: errorTokens,
   });
+
+  // 13. /admin/users
+  await verifyRoute("Admin Users Management", "/admin/users", adminCookie, {
+    shouldContain: ["Gestion des Comptes"],
+    shouldNotContain: errorTokens,
+  });
+
+  // 14. /admin/settings
+  await verifyRoute("Admin System Settings", "/admin/settings", adminCookie, {
+    shouldContain: ["Paramètres de la Plateforme"],
+    shouldNotContain: errorTokens,
+  });
+
+  console.log("\n🛡️ Testing Server-Side RBAC Redirections & Gateways:\n");
+
+  // A. Unauthenticated user accessing /citizen/dashboard -> 307 to /login
+  process.stdout.write("• Checking Unauthenticated -> /citizen/dashboard redirect... ");
+  const unauthRes = await requestHttp("/citizen/dashboard", "GET");
+  if (unauthRes.status === 307 && unauthRes.headers.location?.includes("/login")) {
+    console.log("✅ PASS (HTTP 307 -> /login)");
+  } else {
+    console.log(`❌ FAIL (HTTP ${unauthRes.status}, location=${unauthRes.headers.location})`);
+    throw new Error("Unauthenticated user not redirected to login");
+  }
+
+  // B. Citizen user accessing /municipal/dashboard -> 307 redirect
+  process.stdout.write("• Checking Citizen -> /municipal/dashboard forbidden redirect... ");
+  const citizenToMuniRes = await requestHttp("/municipal/dashboard", "GET", undefined, citizenCookie);
+  if (citizenToMuniRes.status === 307) {
+    console.log("✅ PASS (HTTP 307 Redirected)");
+  } else {
+    console.log(`❌ FAIL (HTTP ${citizenToMuniRes.status})`);
+    throw new Error("Citizen was not redirected away from municipal portal");
+  }
+
+  // C. Citizen user accessing /admin/dashboard -> 307 redirect
+  process.stdout.write("• Checking Citizen -> /admin/dashboard forbidden redirect... ");
+  const citizenToAdminRes = await requestHttp("/admin/dashboard", "GET", undefined, citizenCookie);
+  if (citizenToAdminRes.status === 307) {
+    console.log("✅ PASS (HTTP 307 Redirected)");
+  } else {
+    console.log(`❌ FAIL (HTTP ${citizenToAdminRes.status})`);
+    throw new Error("Citizen was not redirected away from admin portal");
+  }
 
   console.log("\n🧪 Testing Dashboard API Data Endpoints:\n");
 
@@ -204,7 +275,7 @@ async function run() {
   }
 
   console.log("\n==================================================");
-  console.log("🎉 ALL ROUTES, ASSETS & DATA ENDPOINTS VERIFIED CLEAN!");
+  console.log("🎉 ALL 14 ROUTES, ASSETS, RBAC & DATA ENDPOINTS VERIFIED CLEAN!");
   console.log("==================================================");
 }
 
