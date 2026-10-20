@@ -18,6 +18,7 @@
     "test:phase8": "tsx tests/phase8.test.ts",
     "test:gemini": "tsx scripts/test-gemini-live.ts",
     "verify:integrations": "tsx scripts/verify-real-integration.ts",
+    "verify:routes": "tsx scripts/verify-routes-and-assets.ts",
     "migrate:photos": "tsx scripts/migrate-photos-to-storage.ts",
     "test:live": "tsx scripts/verify-e2e-live.ts",
     "prisma:generate": "prisma generate",
