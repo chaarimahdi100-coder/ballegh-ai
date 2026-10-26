@@ -10,30 +10,43 @@ const demoSwitchSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // 1. Protection contre l'escalade de privilèges en environnement de production
+    // 1. Protection contre l'escalade de privilèges en environnement public / production
     const isProduction = process.env.NODE_ENV === "production";
     const allowDemo = process.env.ALLOW_DEMO_SWITCH === "true";
+    const disallowExplicit = process.env.ALLOW_DEMO_SWITCH === "false";
 
-    if (isProduction && !allowDemo) {
+    if (disallowExplicit || (isProduction && !allowDemo)) {
       return NextResponse.json(
         {
-          error: "Action refusée. Le basculement de compte démo est strictement désactivé en production.",
+          error: "Action refusée. Le basculement de compte démo est strictement désactivé sur cet environnement public ou de production.",
           code: "DEMO_SWITCH_FORBIDDEN",
         },
         { status: 403 }
       );
     }
 
-    const body = await request.json();
-    const parsed = demoSwitchSchema.safeParse(body);
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Requête invalide", code: "INVALID_JSON" },
+        { status: 400 }
+      );
+    }
 
+    const parsed = demoSwitchSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: "Rôle invalide" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Rôle invalide. Rôles acceptés: citizen, municipal_agent, admin.", code: "INVALID_ROLE" },
+        { status: 400 }
+      );
     }
 
     const targetRole = parsed.data.role as UserRole;
     const user = DEMO_USERS.find((u) => u.role === targetRole) || DEMO_USERS[0];
 
+    // Création d'un token sécurisé marqué explicitement comme démo
     const token = await createSessionToken({
       userId: user.id,
       email: user.email,

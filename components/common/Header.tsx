@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n/I18nContext";
@@ -33,6 +33,30 @@ export function Header({ roleMode }: HeaderProps) {
   const { activeUser } = useDemo();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Fermeture du menu mobile lors d'un clic extérieur ou appui sur Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    }
+
+    if (mobileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
     try {
@@ -89,7 +113,10 @@ export function Header({ roleMode }: HeaderProps) {
       : publicLinks;
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-900/95">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-900/95"
+    >
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <div className="flex items-center gap-6">
@@ -145,7 +172,7 @@ export function Header({ roleMode }: HeaderProps) {
               </Link>
               <Link
                 href="/citizen/reports/new"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-brand-teal-600 hover:bg-brand-teal-700 rounded-lg shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal-500"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-brand-teal-600 hover:bg-brand-teal-700 rounded-lg shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal-500 cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>{t("landing.ctaReport")}</span>
@@ -175,7 +202,7 @@ export function Header({ roleMode }: HeaderProps) {
                 type="button"
                 onClick={handleLogout}
                 title={t("nav.logout")}
-                className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -186,8 +213,9 @@ export function Header({ roleMode }: HeaderProps) {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800"
+            className="md:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 cursor-pointer"
             aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -196,7 +224,7 @@ export function Header({ roleMode }: HeaderProps) {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 dark:border-slate-800 dark:bg-slate-900 shadow-xl">
+        <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 dark:border-slate-800 dark:bg-slate-900 shadow-xl animate-in slide-in-from-top duration-150">
           <div className="space-y-1">
             {activeLinks.map((link) => (
               <Link
@@ -204,7 +232,7 @@ export function Header({ roleMode }: HeaderProps) {
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "block px-3 py-2 rounded-lg text-base font-medium transition-colors",
+                  "block px-3 py-2 rounded-lg text-base font-medium transition-colors text-start",
                   pathname === link.href
                     ? "bg-brand-teal-50 text-brand-teal-800 font-semibold dark:bg-brand-teal-950 dark:text-brand-teal-300"
                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -237,7 +265,7 @@ export function Header({ roleMode }: HeaderProps) {
               </>
             ) : (
               <div className="flex items-center justify-between px-2 py-1">
-                <div>
+                <div className="text-start">
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
                     {activeUser.name}
                   </p>
@@ -249,7 +277,7 @@ export function Header({ roleMode }: HeaderProps) {
                     setMobileMenuOpen(false);
                     handleLogout();
                   }}
-                  className="inline-flex items-center gap-1 text-xs text-rose-600 font-semibold"
+                  className="inline-flex items-center gap-1 text-xs text-rose-600 font-semibold cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>{t("nav.logout")}</span>

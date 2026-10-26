@@ -10,6 +10,7 @@ export interface DemoContextType {
   activeUser: User;
   isLoading: boolean;
   error: string | null;
+  isDemoAllowed: boolean;
   setActiveRole: (role: UserRole) => Promise<void>;
   refreshReports: () => Promise<void>;
   getReportById: (id: string) => Report | undefined;
@@ -54,6 +55,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [activeUser, setActiveUser] = useState<User>(DEMO_USERS[0]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoAllowed, setIsDemoAllowed] = useState<boolean>(true);
 
   const refreshReports = useCallback(async () => {
     setIsLoading(true);
@@ -81,18 +83,21 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const syncUserSession = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setActiveUser(data.user);
-          return;
-        }
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.demoModeAllowed === "boolean") {
+        setIsDemoAllowed(data.demoModeAllowed);
       }
-      // Check saved demo role fallback
-      const savedRole = localStorage.getItem("ballegh_active_role") as UserRole;
-      if (savedRole) {
-        const found = DEMO_USERS.find((u) => u.role === savedRole);
-        if (found) setActiveUser(found);
+      if (res.ok && data?.authenticated && data?.user) {
+        setActiveUser(data.user);
+        return;
+      }
+      // Check saved demo role fallback only if demo mode is permitted on this host
+      if (data?.demoModeAllowed !== false) {
+        const savedRole = localStorage.getItem("ballegh_active_role") as UserRole;
+        if (savedRole) {
+          const found = DEMO_USERS.find((u) => u.role === savedRole);
+          if (found) setActiveUser(found);
+        }
       }
     } catch {
       // offline fallback
@@ -463,6 +468,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         activeUser,
         isLoading,
         error,
+        isDemoAllowed,
         setActiveRole,
         refreshReports,
         getReportById,

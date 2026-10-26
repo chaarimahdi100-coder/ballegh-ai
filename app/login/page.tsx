@@ -12,7 +12,7 @@ import type { UserRole } from "@/lib/types";
 
 function LoginForm() {
   const { t, language } = useI18n();
-  const { setActiveRole } = useDemo();
+  const { setActiveRole, isDemoAllowed } = useDemo();
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
@@ -92,63 +92,67 @@ function LoginForm() {
 
   return (
     <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 sm:px-10">
-      {/* Quick Demo Login Box */}
-      <div className="mb-6 rounded-xl bg-slate-50 p-4 border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700">
-        <span className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2.5">
-          {t("auth.demoQuickLogin")}
-        </span>
-        <div className="space-y-2">
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => handleQuickLogin("citizen", "/citizen/dashboard")}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-brand-teal-50 hover:border-brand-teal-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60"
-          >
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-brand-teal-600" />
-              <span>{t("auth.loginAsCitizen")}</span>
-            </div>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-          </button>
+      {/* Quick Demo Login Box (Accessible uniquement en environnement local / autorisé) */}
+      {isDemoAllowed && (
+        <>
+          <div className="mb-6 rounded-xl bg-slate-50 p-4 border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700">
+            <span className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2.5">
+              {t("auth.demoQuickLogin")}
+            </span>
+            <div className="space-y-2">
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleQuickLogin("citizen", "/citizen/dashboard")}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-brand-teal-50 hover:border-brand-teal-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-brand-teal-600" />
+                  <span>{t("auth.loginAsCitizen")}</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
 
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => handleQuickLogin("municipal_agent", "/municipal/dashboard")}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-blue-50 hover:border-blue-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60"
-          >
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-blue-600" />
-              <span>{t("auth.loginAsMunicipal")}</span>
-            </div>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-          </button>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleQuickLogin("municipal_agent", "/municipal/dashboard")}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-blue-50 hover:border-blue-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-blue-600" />
+                  <span>{t("auth.loginAsMunicipal")}</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
 
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => handleQuickLogin("admin", "/admin/dashboard")}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-purple-50 hover:border-purple-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60"
-          >
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-purple-600" />
-              <span>{t("auth.loginAsAdmin")}</span>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleQuickLogin("admin", "/admin/dashboard")}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-purple-50 hover:border-purple-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-purple-600" />
+                  <span>{t("auth.loginAsAdmin")}</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-          </button>
-        </div>
-      </div>
+          </div>
 
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white px-2 text-slate-400 dark:bg-slate-900 font-bold">
-            {language === "ar" ? "أو تسجيل الدخول بكلمة المرور" : "Ou connexion par mot de passe"}
-          </span>
-        </div>
-      </div>
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-slate-400 dark:bg-slate-900 font-bold">
+                {language === "ar" ? "أو تسجيل الدخول بكلمة المرور" : "Ou connexion par mot de passe"}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
 
       {errorMessage && (
         <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
