@@ -26,9 +26,16 @@ export async function POST(request: Request) {
         issues[0]?.message || "Données d'inscription invalides.";
       const flattened = typeof parsed.error.flatten === "function" ? parsed.error.flatten() : { fieldErrors: {} };
 
+      // Journalisation diagnostique sécurisée (sans mots de passe, ni secrets, ni données complètes)
+      console.warn("[register] Échec de validation du formulaire citoyen:", {
+        issuesCount: issues.length,
+        failedFields: Object.keys(flattened.fieldErrors || {}),
+        firstError: firstErrorMessage,
+      });
+
       return NextResponse.json(
         {
-          error: "Validation échouée",
+          error: firstErrorMessage,
           message: firstErrorMessage,
           fieldErrors: flattened.fieldErrors,
         },

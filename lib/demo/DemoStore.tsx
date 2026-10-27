@@ -55,7 +55,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [activeUser, setActiveUser] = useState<User>(DEMO_USERS[0]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDemoAllowed, setIsDemoAllowed] = useState<boolean>(true);
+  const [isDemoAllowed, setIsDemoAllowed] = useState<boolean>(false);
 
   const refreshReports = useCallback(async () => {
     setIsLoading(true);
@@ -91,8 +91,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         setActiveUser(data.user);
         return;
       }
-      // Check saved demo role fallback only if demo mode is permitted on this host
-      if (data?.demoModeAllowed !== false) {
+      // Check saved demo role fallback only if demo mode is strictly permitted on this host
+      if (data?.demoModeAllowed === true) {
         const savedRole = localStorage.getItem("ballegh_active_role") as UserRole;
         if (savedRole) {
           const found = DEMO_USERS.find((u) => u.role === savedRole);

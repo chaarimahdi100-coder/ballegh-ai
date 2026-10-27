@@ -12,9 +12,14 @@ export function DemoBanner() {
   const { t, language } = useI18n();
   const { activeUser, setActiveRole, resetDemoData, isDemoAllowed } = useDemo();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const roles: { role: UserRole; labelFr: string; labelAr: string; path: string }[] = [
     { role: "citizen", labelFr: "Citoyen (Yassine)", labelAr: "مواطن (ياسين)", path: "/citizen/dashboard" },
@@ -47,8 +52,8 @@ export function DemoBanner() {
     };
   }, [isOpen]);
 
-  // Si le mode démo est strictement désactivé sur ce déploiement, ne rien afficher
-  if (!isDemoAllowed) {
+  // Si le composant n'est pas encore monté côté client ou si le mode démo est désactivé, ne rien afficher
+  if (!mounted || !isDemoAllowed) {
     return null;
   }
 

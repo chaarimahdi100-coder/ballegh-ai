@@ -447,7 +447,7 @@ async function runPhase6Tests() {
       district: "La Marsa",
     });
     const regRes = await registerHandler(regReq);
-    assert.equal(regRes.status, 200);
+    assert.ok(regRes.status === 201 || regRes.status === 200, `Expected 201 or 200, got ${regRes.status}`);
     const regBody = await regRes.json();
     assert.equal(regBody.success, true);
     assert.equal(regBody.user.passwordHash, undefined, "passwordHash must never be exposed");

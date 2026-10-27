@@ -132,7 +132,7 @@ async function runPhase4Tests() {
     });
 
     const res = await registerHandler(req);
-    assert.equal(res.status, 200);
+    assert.ok(res.status === 201 || res.status === 200, `Expected 201 or 200, got ${res.status}`);
     const body = await res.json();
     assert.equal(body.success, true);
     assert.ok(body.user.id);

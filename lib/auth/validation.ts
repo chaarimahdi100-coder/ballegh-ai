@@ -33,6 +33,9 @@ export function normalizeTunisianPhone(raw: string): {
     clean = clean.slice(5);
   } else if (clean.startsWith("216") && clean.length === 11) {
     clean = clean.slice(3);
+  } else if (clean.startsWith("0") && clean.length === 9) {
+    // Tolérance d'un zéro initial (ex: 098 123 456 -> 98 123 456)
+    clean = clean.slice(1);
   }
 
   // En Tunisie, les numéros ont 8 chiffres et commencent par 2, 3, 4, 5, 7 ou 9

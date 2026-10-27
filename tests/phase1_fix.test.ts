@@ -83,6 +83,12 @@ async function runPhase1Tests() {
     assert.equal(res.normalized, "+216 98 123 456");
   });
 
+  await test("Normalise un numéro avec zéro initial (ex: 098 123 456)", async () => {
+    const res = normalizeTunisianPhone("098 123 456");
+    assert.equal(res.isValid, true);
+    assert.equal(res.normalized, "+216 98 123 456");
+  });
+
   await test("Normalise un numéro avec espaces (ex: 98 123 456)", async () => {
     const res = normalizeTunisianPhone("98 123 456");
     assert.equal(res.isValid, true);
@@ -235,7 +241,7 @@ async function runPhase1Tests() {
     const res = await registerHandler(req);
     assert.equal(res.status, 400);
     const body = await res.json();
-    assert.equal(body.error, "Validation échouée");
+    assert.ok(body.error?.includes("Numéro de téléphone tunisien invalide"));
     assert.ok(body.message?.includes("Numéro de téléphone tunisien invalide"));
     assert.ok(body.fieldErrors?.phone);
   });
