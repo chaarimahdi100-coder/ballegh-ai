@@ -141,7 +141,9 @@ export async function createReport(data: {
     phone: string;
   };
 }): Promise<Report> {
-  const refNum = `BLG-2026-TUN-${Math.floor(100 + Math.random() * 900)}`;
+  const refNum =
+    (data as any).referenceNumber ||
+    `BLG-2026-TUN-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
   const lat = data.latitude || 36.8065;
   const lng = data.longitude || 10.1815;
 
