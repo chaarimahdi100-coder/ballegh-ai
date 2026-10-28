@@ -49,7 +49,7 @@ async function testLiveGemini() {
   }
 
   const maskedKey = apiKey.slice(0, 6) + "..." + apiKey.slice(-4);
-  const targetModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const targetModel = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
   console.log(`\n• Clé API détectée : ${maskedKey} (valeur secrète masquée)`);
   console.log(`• Modèle cible : ${targetModel}`);
 

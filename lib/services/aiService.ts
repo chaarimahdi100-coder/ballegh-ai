@@ -304,7 +304,7 @@ Instructions strictes :
       setTimeout(() => reject(new Error("Timeout dépassé lors de l'appel Gemini API (10s)")), 10000)
     );
 
-    const targetModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const targetModel = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
     const callPromise = ai.models.generateContent({
       model: targetModel,
