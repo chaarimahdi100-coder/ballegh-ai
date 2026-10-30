@@ -13,7 +13,7 @@ const inMemoryUsers: (User & { passwordHash: string })[] = [
     role: "citizen",
     district: "Bab Souika",
     organization: "Citoyen de Tunis",
-    passwordHash: bcrypt.hashSync("Ballegh2026!", 10),
+    passwordHash: "$2a$10$e7K5.VpCvyR5b2L0Yn1lfe/YjJzK5a7M9P0R1S2T3U4V5W6X7Y8Z9", // dummy non-matching hash
   },
   {
     id: "usr_agent_01",
@@ -23,7 +23,7 @@ const inMemoryUsers: (User & { passwordHash: string })[] = [
     role: "municipal_agent",
     district: "Direction de la Voirie et Travaux",
     organization: "Commune de Tunis",
-    passwordHash: bcrypt.hashSync("Ballegh2026!", 10),
+    passwordHash: "$2a$10$e7K5.VpCvyR5b2L0Yn1lfe/YjJzK5a7M9P0R1S2T3U4V5W6X7Y8Z9",
   },
   {
     id: "usr_admin_01",
@@ -33,7 +33,7 @@ const inMemoryUsers: (User & { passwordHash: string })[] = [
     role: "admin",
     district: "Arrondissement Central",
     organization: "Direction des Systèmes d'Information — Ville de Tunis",
-    passwordHash: bcrypt.hashSync("Ballegh2026!", 10),
+    passwordHash: "$2a$10$e7K5.VpCvyR5b2L0Yn1lfe/YjJzK5a7M9P0R1S2T3U4V5W6X7Y8Z9",
   },
   {
     id: "usr_admin_02",
@@ -43,7 +43,7 @@ const inMemoryUsers: (User & { passwordHash: string })[] = [
     role: "admin",
     district: "Arrondissement Central",
     organization: "Direction des Systèmes d'Information — Ville de Tunis",
-    passwordHash: bcrypt.hashSync("Ballegh2026!", 10),
+    passwordHash: "$2a$10$e7K5.VpCvyR5b2L0Yn1lfe/YjJzK5a7M9P0R1S2T3U4V5W6X7Y8Z9",
   },
 ];
 

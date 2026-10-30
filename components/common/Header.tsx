@@ -89,18 +89,22 @@ export function Header({ roleMode }: HeaderProps) {
     { href: "/citizen/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
     { href: "/citizen/reports/new", label: t("nav.newReport"), icon: PlusCircle },
     { href: "/citizen/reports", label: t("nav.myReports"), icon: FileText },
+    { href: "/citizen/profile", label: t("nav.profile"), icon: User },
   ];
 
   const municipalLinks = [
     { href: "/municipal/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
     { href: "/municipal/reports", label: t("nav.reportsQueue"), icon: FileText },
     { href: "/municipal/map", label: t("nav.mapView"), icon: MapPin },
+    { href: "/municipal/profile", label: t("nav.profile"), icon: User },
   ];
 
   const adminLinks = [
     { href: "/admin/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
     { href: "/admin/users", label: t("nav.users"), icon: Users },
+    { href: "/admin/reports", label: t("nav.allReports"), icon: FileText },
     { href: "/admin/settings", label: t("nav.settings"), icon: Settings },
+    { href: "/admin/profile", label: t("nav.profile"), icon: User },
   ];
 
   const activeLinks =
@@ -180,7 +184,18 @@ export function Header({ roleMode }: HeaderProps) {
             </div>
           ) : (
             <div className="hidden sm:flex items-center gap-3 border-s border-slate-200 ps-3 dark:border-slate-800">
-              <div className="flex flex-col text-start">
+              <Link
+                href="/"
+                className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white rounded-lg transition-colors"
+                title={t("nav.switchPortal")}
+              >
+                {t("nav.switchPortal")}
+              </Link>
+
+              <Link
+                href={`/${mode}/profile`}
+                className="flex flex-col text-start hover:opacity-80 transition-opacity"
+              >
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   {activeUser.name}
                 </span>
@@ -197,7 +212,7 @@ export function Header({ roleMode }: HeaderProps) {
                     ? "Agent Municipal"
                     : "Administrateur"}
                 </span>
-              </div>
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
