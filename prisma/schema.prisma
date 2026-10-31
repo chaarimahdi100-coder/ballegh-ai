@@ -13,6 +13,26 @@ enum UserRole {
   ADMIN
 }
 
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  REJECTED
+}
+
 enum IssueCategory {
   POTHOLE
   LIGHTING
@@ -50,21 +70,24 @@ enum TimelineAuthorRole {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String        @id @default(cuid())
+  email        String        @unique
   passwordHash String
   fullName     String
   phone        String
-  role         UserRole  @default(CITIZEN)
+  role         UserRole      @default(CITIZEN)
+  status       AccountStatus @default(ACTIVE)
   district     String?
   organization String?
   avatarUrl    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  submittedReports Report[]        @relation("CitizenReports")
-  humanReviews     HumanReview[]   @relation("AgentReviews")
-  timelineEvents   TimelineEvent[] @relation("UserTimelineEvents")
+  submittedReports           Report[]                 @relation("CitizenReports")
+  humanReviews               HumanReview[]            @relation("AgentReviews")
+  timelineEvents             TimelineEvent[]          @relation("UserTimelineEvents")
+  municipalRequestsReviewed  MunicipalAccessRequest[] @relation("AdminReviewedRequests")
+  adminInvitationsCreated    AdminInvitation[]        @relation("AdminCreatedInvitations")
 
   @@map("users")
 }
@@ -211,3 +234,51 @@ model DuplicateCluster {
 
   @@map("duplicate_clusters")
 }
+
+model MunicipalAccessRequest {
+  id              String        @id @default(cuid())
+  fullName        String
+  email           String        @unique
+  phone           String
+  municipality    String
+  department      String
+  jobTitle        String
+  passwordHash    String
+  notes           String?       @db.Text
+  status          RequestStatus @default(PENDING)
+  rejectionReason String?       @db.Text
+  reviewedById    String?
+  reviewedBy      User?         @relation("AdminReviewedRequests", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("municipal_access_requests")
+}
+
+model AdminInvitation {
+  id          String           @id @default(cuid())
+  email       String           @unique
+  tokenHash   String           @unique
+  fullName    String?
+  department  String?
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  invitedById String
+  invitedBy   User             @relation("AdminCreatedInvitations", fields: [invitedById], references: [id])
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("admin_invitations")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+

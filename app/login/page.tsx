@@ -336,7 +336,7 @@ function LoginForm() {
 
       {/* Sub-Actions based on portal */}
       <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 dark:border-slate-800 space-y-3">
-        {selectedPortal === "citizen" ? (
+        {selectedPortal === "citizen" && (
           <div className="flex items-center justify-between">
             <span>{t("auth.noAccount")}</span>
             <Link
@@ -346,12 +346,44 @@ function LoginForm() {
               {t("auth.signUpBtn")}
             </Link>
           </div>
-        ) : (
-          <p className="text-[11px] text-slate-400 text-center">
-            {language === "ar"
-              ? "يتم تزويد حسابات الأعوان وإدارة المنظومة حصرياً من قِبل المصالح المركزية لبلدية تونس."
-              : "Les comptes municipaux et administrateurs sont provisionnés par la Direction Municipale."}
-          </p>
+        )}
+
+        {selectedPortal === "municipal" && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>{t("auth.needMunicipalAccess")}</span>
+              <Link
+                href="/municipal/request-access"
+                className="font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              >
+                {language === "ar" ? "طلب تصريح وصول" : "Demander un accès"}
+              </Link>
+            </div>
+            <p className="text-[11px] text-slate-400 text-center">
+              {language === "ar"
+                ? "يخضع انضمام الأعوان لمراجعة واعتماد رسمي من قِبل إدارة البلدية قبل التفعيل."
+                : "Toute demande d'accès est soumise à validation préalable de la Direction Municipale."}
+            </p>
+          </div>
+        )}
+
+        {selectedPortal === "admin" && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>{t("auth.haveInvitation")}</span>
+              <Link
+                href="/admin/accept-invitation"
+                className="font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400"
+              >
+                {language === "ar" ? "تفعيل الحساب" : "Activer mon compte"}
+              </Link>
+            </div>
+            <p className="text-[11px] text-slate-400 text-center">
+              {language === "ar"
+                ? "الدخول محمي ومقصور على المشرفين المعتمدين عبر رابط دعوة تشفيري مسبق."
+                : "Accès strictement restreint aux administrateurs munis d'un jeton d'invitation chiffré."}
+            </p>
+          </div>
         )}
 
         <div className="flex items-center justify-between pt-2">

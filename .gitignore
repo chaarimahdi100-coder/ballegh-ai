@@ -35,6 +35,10 @@ yarn-error.log*
 *.dump
 *.sql
 
+# security & locks
+.bootstrap.lock
+*.lock.local
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

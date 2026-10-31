@@ -39,6 +39,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // Account status security gate
+    const status = user.status ? user.status.toLowerCase() : "active";
+    if (status === "pending") {
+      return NextResponse.json(
+        {
+          error: "Compte en attente de validation",
+          message: "Votre compte est en cours d'examen par la Direction Municipale.",
+        },
+        { status: 403 }
+      );
+    }
+    if (status === "suspended") {
+      return NextResponse.json(
+        {
+          error: "Compte suspendu",
+          message: "Ce compte utilisateur a été temporairement suspendu.",
+        },
+        { status: 403 }
+      );
+    }
+    if (status === "rejected") {
+      return NextResponse.json(
+        {
+          error: "Accès refusé",
+          message: "Votre demande d'accès n'a pas été retenue par l'administration.",
+        },
+        { status: 403 }
+      );
+    }
+
     const token = await createSessionToken({
       userId: user.id,
       email: user.email,

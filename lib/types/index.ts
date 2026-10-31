@@ -2,6 +2,7 @@ export type Language = "fr" | "ar";
 export type Direction = "ltr" | "rtl";
 
 export type UserRole = "citizen" | "municipal_agent" | "admin";
+export type AccountStatus = "active" | "pending" | "suspended" | "rejected";
 
 export interface User {
   id: string;
@@ -9,9 +10,46 @@ export interface User {
   email: string;
   phone: string;
   role: UserRole;
+  status?: AccountStatus;
   avatarUrl?: string;
   district?: string;
   organization?: string;
+}
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export interface MunicipalAccessRequest {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  municipality: string;
+  department: string;
+  jobTitle: string;
+  notes?: string;
+  status: RequestStatus;
+  rejectionReason?: string;
+  reviewedById?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface AdminInvitation {
+  id: string;
+  email: string;
+  tokenHash: string;
+  token?: string; // Only present in transient response upon generation
+  fullName?: string;
+  department?: string;
+  status: InvitationStatus;
+  expiresAt: string;
+  invitedById: string;
+  acceptedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type IssueCategory = "pothole" | "lighting" | "flooding";

@@ -12,11 +12,14 @@ export interface SessionPayload {
   isDemo?: boolean;
 }
 
-const DEFAULT_SECRET = "ballegh-ai-tunis-civic-secret-key-minimum-32-chars-2026-secure";
-
 function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || DEFAULT_SECRET;
-  return new TextEncoder().encode(secret);
+  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
+  if (!secret || secret.trim().length < 32) {
+    throw new Error(
+      "SÉCURITÉ: La variable d'environnement AUTH_SECRET (au moins 32 caractères) est obligatoire."
+    );
+  }
+  return new TextEncoder().encode(secret.trim());
 }
 
 export const SESSION_COOKIE_NAME = "ballegh_session";

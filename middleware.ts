@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const DEFAULT_SECRET = "ballegh-ai-tunis-civic-secret-key-minimum-32-chars-2026-secure";
-
 async function verifyToken(token: string) {
   try {
-    const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || DEFAULT_SECRET;
-    const key = new TextEncoder().encode(secret);
+    const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
+    if (!secret || secret.trim().length < 32) {
+      return null;
+    }
+    const key = new TextEncoder().encode(secret.trim());
     const { payload } = await jwtVerify(token, key, {
       algorithms: ["HS256"],
     });
@@ -19,6 +20,15 @@ async function verifyToken(token: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("ballegh_session")?.value;
+
+  // Public exceptions for privileged registration/activation flows
+  if (pathname.startsWith("/municipal/request-access")) {
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/admin/accept-invitation")) {
+    return NextResponse.next();
+  }
 
   // 1. Municipal Agent Portal Protection
   if (pathname.startsWith("/municipal")) {
