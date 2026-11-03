@@ -40,8 +40,8 @@ export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
 export interface AdminInvitation {
   id: string;
   email: string;
-  tokenHash: string;
-  token?: string; // Only present in transient response upon generation
+  tokenHash?: string; // Server-side only; never exposed to frontend listings
+  token?: string; // Only present in transient response upon initial generation
   fullName?: string;
   department?: string;
   status: InvitationStatus;

@@ -1,10 +1,18 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { Header } from "@/components/common/Header";
 import { Sidebar } from "@/components/common/Sidebar";
 
 export default function MunicipalLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  // /municipal/request-access is a public standalone onboarding page: bypass dashboard header and sidebar
+  if (pathname?.startsWith("/municipal/request-access")) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Header roleMode="municipal" />

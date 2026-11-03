@@ -23,7 +23,20 @@ export async function GET(request: Request) {
       );
     }
 
-    const invitations = await listAdminInvitations();
+    const rawInvitations = await listAdminInvitations();
+
+    // Security: Return only necessary invitation metadata; NEVER expose raw tokens or token hashes
+    const invitations = rawInvitations.map((inv) => ({
+      id: inv.id,
+      email: inv.email,
+      fullName: inv.fullName,
+      department: inv.department,
+      status: inv.status,
+      expiresAt: inv.expiresAt,
+      createdAt: inv.createdAt,
+      acceptedAt: inv.acceptedAt,
+    }));
+
     return NextResponse.json({
       success: true,
       count: invitations.length,
@@ -84,7 +97,16 @@ export async function POST(request: Request) {
       {
         success: true,
         message: "Lien d'invitation administrateur généré avec succès.",
-        invitation: inv,
+        invitation: {
+          id: inv.id,
+          email: inv.email,
+          fullName: inv.fullName,
+          department: inv.department,
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        },
+        rawToken: inv.token,
         invitationLink,
       },
       { status: 201 }

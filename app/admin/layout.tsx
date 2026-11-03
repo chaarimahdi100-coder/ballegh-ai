@@ -1,10 +1,18 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { Header } from "@/components/common/Header";
 import { Sidebar } from "@/components/common/Sidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  // /admin/accept-invitation is a public standalone activation page: bypass dashboard header and sidebar
+  if (pathname?.startsWith("/admin/accept-invitation")) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Header roleMode="admin" />

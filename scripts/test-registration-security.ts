@@ -191,6 +191,7 @@ async function runSecurityAudit() {
       createAdminInvitation,
       findAdminInvitationByToken,
       acceptAdminInvitation,
+      listAdminInvitations,
     } = await import("../lib/repositories/userRepository");
 
     const invitation = await createAdminInvitation({
@@ -223,6 +224,22 @@ async function runSecurityAudit() {
       console.log(`  ✅ PASS: Token is hashed at rest with SHA-256 (raw token never stored in DB)`);
     }
 
+    // 3.1 Verify listAdminInvitations() never leaks raw token OR token hash
+    const allInvitations = await listAdminInvitations();
+    const foundInList = allInvitations.find((i) => i.id === testInvitationId);
+    if (!foundInList) {
+      console.error(`❌ FAIL: Created invitation not found in listAdminInvitations()`);
+      allChecksPassed = false;
+    } else if (foundInList.token !== undefined) {
+      console.error(`❌ FAIL: listAdminInvitations() leaked raw token! Expected undefined, got '${foundInList.token}'`);
+      allChecksPassed = false;
+    } else if (foundInList.tokenHash !== undefined) {
+      console.error(`❌ FAIL: listAdminInvitations() leaked token hash! Expected undefined, got '${foundInList.tokenHash}'`);
+      allChecksPassed = false;
+    } else {
+      console.log(`  ✅ PASS: listAdminInvitations() strictly excludes raw token AND token hash (only necessary metadata exposed)`);
+    }
+
     const foundInv = await findAdminInvitationByToken(testInvitationToken);
     if (!foundInv || foundInv.status !== "pending") {
       console.error(`❌ FAIL: Could not retrieve active pending invitation by raw token.`);
@@ -239,6 +256,75 @@ async function runSecurityAudit() {
       console.log(`  ✅ PASS: Bogus token safely rejected with null`);
     }
 
+    // 3.2 Verify expired token behavior
+    const expiredTokenRaw = crypto.randomBytes(32).toString("hex");
+    const expiredTokenHash = crypto.createHash("sha256").update(expiredTokenRaw).digest("hex");
+    const testExpiredEmail = `test.expired.${timestamp}@ballegh.test`;
+    const expiredInv = await prisma.adminInvitation.create({
+      data: {
+        email: testExpiredEmail,
+        tokenHash: expiredTokenHash,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() - 1000 * 60 * 60), // Expired 1 hour ago
+        invitedById: testAdminUserId,
+      },
+    });
+
+    const foundExpired = await findAdminInvitationByToken(expiredTokenRaw);
+    if (!foundExpired || foundExpired.status !== "expired") {
+      console.error(`❌ FAIL: Expired invitation should have status 'expired', got '${foundExpired?.status}'`);
+      allChecksPassed = false;
+    } else {
+      console.log(`  ✅ PASS: Expired token automatically identified and marked as 'expired'`);
+    }
+
+    try {
+      await acceptAdminInvitation({
+        token: expiredTokenRaw,
+        password: "ExpiredPassword2026!",
+      });
+      console.error(`❌ FAIL: Expired invitation was accepted!`);
+      allChecksPassed = false;
+    } catch (expErr: any) {
+      console.log(`  ✅ PASS: Accepting expired invitation rejected: "${expErr.message}"`);
+    }
+    await prisma.adminInvitation.deleteMany({ where: { id: expiredInv.id } });
+
+    // 3.3 Verify revoked token behavior
+    const revokedTokenRaw = crypto.randomBytes(32).toString("hex");
+    const revokedTokenHash = crypto.createHash("sha256").update(revokedTokenRaw).digest("hex");
+    const testRevokedEmail = `test.revoked.${timestamp}@ballegh.test`;
+    const revokedInv = await prisma.adminInvitation.create({
+      data: {
+        email: testRevokedEmail,
+        tokenHash: revokedTokenHash,
+        status: "REVOKED",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+        invitedById: testAdminUserId,
+      },
+    });
+
+    const foundRevoked = await findAdminInvitationByToken(revokedTokenRaw);
+    if (!foundRevoked || foundRevoked.status !== "revoked") {
+      console.error(`❌ FAIL: Revoked invitation should have status 'revoked', got '${foundRevoked?.status}'`);
+      allChecksPassed = false;
+    } else {
+      console.log(`  ✅ PASS: Revoked invitation verified with status 'revoked'`);
+    }
+
+    try {
+      await acceptAdminInvitation({
+        token: revokedTokenRaw,
+        password: "RevokedPassword2026!",
+      });
+      console.error(`❌ FAIL: Revoked invitation was accepted!`);
+      allChecksPassed = false;
+    } catch (revErr: any) {
+      console.log(`  ✅ PASS: Accepting revoked invitation rejected: "${revErr.message}"`);
+    }
+    await prisma.adminInvitation.deleteMany({ where: { id: revokedInv.id } });
+
+    // 3.4 Valid acceptance
     const acceptResult = await acceptAdminInvitation({
       token: testInvitationToken,
       password: "AdminNewPassword2026!",
@@ -255,6 +341,7 @@ async function runSecurityAudit() {
       console.log(`  ✅ PASS: Invitation accepted; Admin user provisioned with role 'admin'`);
     }
 
+    // 3.5 Replay prevention
     try {
       await acceptAdminInvitation({
         token: testInvitationToken,

@@ -70,7 +70,10 @@ export default function AdminUsersPage() {
   const [inviteFullName, setInviteFullName] = useState("");
   const [inviteDepartment, setInviteDepartment] = useState("Direction des Systèmes d'Information");
   const [generatedInviteLink, setGeneratedInviteLink] = useState<string | null>(null);
+  const [generatedRawToken, setGeneratedRawToken] = useState<string | null>(null);
+  const [generatedExpiresAt, setGeneratedExpiresAt] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
 
   // Common notifications
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -229,6 +232,8 @@ export default function AdminUsersPage() {
         throw new Error(data.error || "Échec de la génération de l'invitation");
       }
       setGeneratedInviteLink(data.invitationLink);
+      setGeneratedRawToken(data.rawToken || data.invitation?.token || null);
+      setGeneratedExpiresAt(data.invitation?.expiresAt || null);
       showSuccess("Invitation générée avec succès.");
       await fetchInvitations();
     } catch (err: any) {
@@ -256,10 +261,16 @@ export default function AdminUsersPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
+  const copyLinkToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const copyTokenToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2500);
   };
 
   // Pending counts
@@ -297,8 +308,26 @@ export default function AdminUsersPage() {
           </p>
         </div>
 
-        {/* Global Action Button based on active tab */}
-        <div className="flex items-center gap-2">
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMessage(null);
+              setGeneratedInviteLink(null);
+              setGeneratedRawToken(null);
+              setGeneratedExpiresAt(null);
+              setInviteEmail("");
+              setInviteFullName("");
+              setIsInviteModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition-colors cursor-pointer"
+            title="Générer un jeton d'invitation administrateur sécurisé (48h)"
+          >
+            <Send className="w-4 h-4" />
+            <span>{language === "ar" ? "دعوة مسؤول جديد" : "Inviter un Administrateur"}</span>
+          </button>
+
           {activeTab === "users" && (
             <button
               type="button"
@@ -310,23 +339,6 @@ export default function AdminUsersPage() {
             >
               <PlusCircle className="w-4 h-4" />
               <span>{language === "ar" ? "إضافة مستخدم" : "Créer un utilisateur"}</span>
-            </button>
-          )}
-
-          {activeTab === "admin_invitations" && (
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMessage(null);
-                setGeneratedInviteLink(null);
-                setInviteEmail("");
-                setInviteFullName("");
-                setIsInviteModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition-colors cursor-pointer"
-            >
-              <Send className="w-4 h-4" />
-              <span>{language === "ar" ? "دعوة مسؤول جديد" : "Inviter un Administrateur"}</span>
             </button>
           )}
         </div>
@@ -412,6 +424,41 @@ export default function AdminUsersPage() {
       {/* ======================================================== */}
       {activeTab === "users" && (
         <div className="space-y-4">
+          {/* Quick Admin Invitation Banner */}
+          <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50/90 via-white to-purple-50/60 p-4 shadow-xs dark:border-purple-900/60 dark:bg-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 shrink-0">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                  {language === "ar" ? "توسيع فريق الإدارة المركزية" : "Habilitation d'un nouvel Administrateur"}
+                </p>
+                <p className="text-[11px] text-purple-700/90 dark:text-purple-300/80">
+                  {language === "ar"
+                    ? "لا توجد استمارة تسجيل عامة للمشرفين. يجب توليد رمز دعوة تشفيري ذو استخدام واحد صالح 48 ساعة."
+                    : "L'inscription publique d'administrateurs est strictement fermée. Générez un jeton cryptographique d'invitation à usage unique (validité 48h)."}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage(null);
+                setGeneratedInviteLink(null);
+                setGeneratedRawToken(null);
+                setGeneratedExpiresAt(null);
+                setInviteEmail("");
+                setInviteFullName("");
+                setIsInviteModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{language === "ar" ? "إصدار دعوة جديدة" : "Inviter un Administrateur"}</span>
+            </button>
+          </div>
+
           {/* Filter Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
             <div className="relative">
@@ -683,7 +730,7 @@ export default function AdminUsersPage() {
                                 type="button"
                                 disabled={reviewingId === req.id}
                                 onClick={() => handleReviewRequest(req.id, "APPROVED")}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                                 title="Approuver la demande et créer le compte Agent Municipal"
                               >
                                 {reviewingId === req.id ? (
@@ -726,18 +773,49 @@ export default function AdminUsersPage() {
       {/* ======================================================== */}
       {activeTab === "admin_invitations" && (
         <div className="space-y-4">
-          {/* Info Card */}
-          <div className="rounded-2xl border border-purple-200 bg-purple-50/60 p-4 text-xs text-purple-950 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200 flex items-start gap-3">
-            <Shield className="w-5 h-5 text-purple-700 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold">
-                {language === "ar" ? "بروتوكول تزويد المشرفين المقيد" : "Protocole d'invitation sécurisé"}
-              </p>
-              <p className="opacity-90 leading-relaxed">
-                {language === "ar"
-                  ? "لا يمكن التسجيل كمدير للمنظومة مباشرة. كل مسؤول جديد يتطلب رابط دعوة تشفيري ذو استخدام واحد وصالح لمدة 48 ساعة فقط."
-                  : "Aucune inscription publique d'administrateur n'est autorisée. Tout nouvel accès nécessite un jeton cryptographique aléatoire de 32 octets, à usage unique, expirant sous 48 heures."}
-              </p>
+          {/* Info Card with Direct Link */}
+          <div className="rounded-2xl border border-purple-200 bg-purple-50/80 p-4 text-xs text-purple-950 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Shield className="w-5 h-5 text-purple-700 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">
+                  {language === "ar" ? "بروتوكول تزويد المشرفين المقيد (صلاحية 48 ساعة)" : "Protocole d'invitation sécurisé (Usage unique • Validité 48h)"}
+                </p>
+                <p className="opacity-90 leading-relaxed text-[11px]">
+                  {language === "ar"
+                    ? "لا يمكن التسجيل كمدير للمنظومة مباشرة. كل مسؤول جديد يتطلب رابط دعوة تشفيري ذو استخدام واحد وصالح لمدة 48 ساعة فقط. يتم تخزين بصمة SHA-256 فقط في قاعدة البيانات."
+                    : "Aucune inscription publique d'administrateur n'est autorisée. Tout nouvel accès nécessite un jeton cryptographique aléatoire de 32 octets, à usage unique, expirant sous 48 heures. Seule l'empreinte SHA-256 est conservée."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="/admin/accept-invitation"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-purple-300 text-purple-700 font-bold text-xs hover:bg-purple-50 transition-colors shadow-xs dark:bg-slate-800 dark:border-purple-700 dark:text-purple-300"
+              >
+                <span>{language === "ar" ? "صفحة تفعيل الدعوة" : "Page d'activation"}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setGeneratedInviteLink(null);
+                  setGeneratedRawToken(null);
+                  setGeneratedExpiresAt(null);
+                  setInviteEmail("");
+                  setInviteFullName("");
+                  setIsInviteModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{language === "ar" ? "دعوة جديدة" : "Nouvelle invitation"}</span>
+              </button>
             </div>
           </div>
 
@@ -749,7 +827,7 @@ export default function AdminUsersPage() {
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60">
                     <th className="py-3.5 px-4">Destinataire</th>
                     <th className="py-3.5 px-4">Direction / Service</th>
-                    <th className="py-3.5 px-4">Jeton (Token)</th>
+                    <th className="py-3.5 px-4">Date création</th>
                     <th className="py-3.5 px-4">Date expiration</th>
                     <th className="py-3.5 px-4">Statut</th>
                     <th className="py-3.5 px-4 text-center">Actions</th>
@@ -788,8 +866,14 @@ export default function AdminUsersPage() {
                           {inv.department || "Direction des Systèmes d'Information"}
                         </td>
 
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          <span title={inv.tokenHash}>SHA256:{inv.tokenHash.slice(0, 10)}...</span>
+                        <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                          {new Date(inv.createdAt).toLocaleString("fr-TN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </td>
 
                         <td className="py-3.5 px-4 text-slate-500 text-[11px]">
@@ -1144,50 +1228,123 @@ export default function AdminUsersPage() {
                 </div>
               </form>
             ) : (
-              /* Success Generated Link Screen */
+              /* Success Generated Link Screen with Raw Token and One-Time Warning */
               <div className="space-y-4 py-2">
-                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs">
+                <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <span>Lien d'invitation administrateur généré avec succès !</span>
+                  <span>Jeton d'invitation administrateur généré avec succès !</span>
                 </div>
 
-                <div className="rounded-xl bg-slate-100 p-3 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 space-y-2">
-                  <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    Lien d'activation à transmettre :
-                  </span>
+                {/* ONE-TIME DISPLAY WARNING (AMBER) */}
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-extrabold uppercase tracking-wide text-[11px] text-amber-800 dark:text-amber-300">
+                      ⚠️ Sécurité : Affichage unique du jeton en clair
+                    </p>
+                    <p className="text-[11px] leading-relaxed">
+                      Ce jeton brut ne sera <strong>plus JAMAIS affiché ni récupérable</strong> après la fermeture de cette fenêtre.
+                      Seule son empreinte <strong>SHA-256</strong> irréversible est conservée en base de données.
+                      Copiez le jeton ou transmettez le lien d'activation immédiatement au collaborateur.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 1. RAW TOKEN BOX */}
+                {generatedRawToken && (
+                  <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800/80 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        1. Jeton cryptographique brut (Token 32 octets / 64 hex) :
+                      </span>
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">
+                        Usage unique strict
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={generatedRawToken}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-purple-900 dark:border-slate-600 dark:bg-slate-900 dark:text-purple-200 select-all font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => copyTokenToClipboard(generatedRawToken)}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                        title="Copier le jeton brut dans le presse-papier"
+                      >
+                        {copiedToken ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span>{copiedToken ? "Copié !" : "Copier le jeton"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. FULL INVITATION LINK */}
+                <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800/80 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      2. Lien d'activation direct à transmettre :
+                    </span>
+                    {generatedExpiresAt && (
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Expire le : {new Date(generatedExpiresAt).toLocaleString("fr-TN", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={generatedInviteLink}
+                      value={generatedInviteLink || ""}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(generatedInviteLink)}
-                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                      onClick={() => generatedInviteLink && copyLinkToClipboard(generatedInviteLink)}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer dark:bg-slate-700 dark:hover:bg-slate-600"
+                      title="Copier le lien complet dans le presse-papier"
                     >
                       {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      <span>{copiedLink ? "Copié !" : "Copier"}</span>
+                      <span>{copiedLink ? "Copié !" : "Copier le lien"}</span>
                     </button>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Ce lien est à usage unique et expirera dans <strong>48 heures</strong>. Transmettez-le de
-                  manière confidentielle au collaborateur concerné.
-                </p>
+                {/* INSTRUCTIONS & DIRECT LINK */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-slate-500">
+                  <p>
+                    Validité : <strong>48 heures</strong>. Transmettez ce lien par voie confidentielle.
+                  </p>
+                  <a
+                    href="/admin/accept-invitation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-purple-700 hover:underline font-semibold dark:text-purple-300 shrink-0"
+                  >
+                    <span>Ouvrir la page d'activation</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => {
                       setIsInviteModalOpen(false);
                       setGeneratedInviteLink(null);
+                      setGeneratedRawToken(null);
+                      setGeneratedExpiresAt(null);
                     }}
-                    className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+                    className="px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
                   >
-                    Fermer
+                    Fermer la fenêtre
                   </button>
                 </div>
               </div>

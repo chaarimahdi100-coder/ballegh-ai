@@ -19,7 +19,11 @@ export async function GET(request: Request) {
 
     if (!token) {
       return NextResponse.json(
-        { valid: false, error: "Jeton d'invitation manquant" },
+        {
+          valid: false,
+          errorCode: "TOKEN_MISSING",
+          error: "Jeton d'invitation manquant. Veuillez fournir un jeton valide.",
+        },
         { status: 400 }
       );
     }
@@ -27,28 +31,44 @@ export async function GET(request: Request) {
     const inv = await findAdminInvitationByToken(token);
     if (!inv) {
       return NextResponse.json(
-        { valid: false, error: "Invitation introuvable ou jeton invalide." },
+        {
+          valid: false,
+          errorCode: "TOKEN_NOT_FOUND",
+          error: "Jeton d'invitation introuvable ou incorrect. Vérifiez qu'aucun caractère n'a été tronqué lors de la copie.",
+        },
         { status: 404 }
       );
     }
 
     if (inv.status === "accepted") {
       return NextResponse.json(
-        { valid: false, error: "Cette invitation a déjà été utilisée." },
+        {
+          valid: false,
+          errorCode: "TOKEN_ALREADY_ACCEPTED",
+          error: "Cette invitation a déjà été utilisée. Par mesure de sécurité anti-rejeu, un jeton d'invitation ne peut servir qu'une seule fois.",
+        },
         { status: 410 }
       );
     }
 
     if (inv.status === "expired" || new Date(inv.expiresAt) < new Date()) {
       return NextResponse.json(
-        { valid: false, error: "Cette invitation a expiré." },
+        {
+          valid: false,
+          errorCode: "TOKEN_EXPIRED",
+          error: "Cette invitation a expiré (validité maximale de 48 heures dépassée). Veuillez demander une nouvelle invitation à un administrateur.",
+        },
         { status: 410 }
       );
     }
 
     if (inv.status === "revoked") {
       return NextResponse.json(
-        { valid: false, error: "Cette invitation a été révoquée par un administrateur." },
+        {
+          valid: false,
+          errorCode: "TOKEN_REVOKED",
+          error: "Cette invitation a été révoquée par un administrateur système.",
+        },
         { status: 403 }
       );
     }

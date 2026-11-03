@@ -783,10 +783,10 @@ export async function listAdminInvitations(): Promise<AdminInvitation[]> {
         orderBy: { createdAt: "desc" },
       });
 
+      // Strict security: Never expose raw tokens OR token hashes in listings
       return list.map((inv) => ({
         id: inv.id,
         email: inv.email,
-        tokenHash: inv.tokenHash,
         fullName: inv.fullName || undefined,
         department: inv.department || undefined,
         status: inv.status.toLowerCase() as InvitationStatus,
@@ -802,7 +802,10 @@ export async function listAdminInvitations(): Promise<AdminInvitation[]> {
     }
   }
 
-  return inMemoryAdminInvitations;
+  // Fallback in-memory: strip token and tokenHash
+  return inMemoryAdminInvitations.map(({ token, tokenHash, ...inv }) => ({
+    ...inv,
+  }));
 }
 
 export async function acceptAdminInvitation(params: {

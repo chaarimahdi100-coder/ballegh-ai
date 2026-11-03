@@ -19,6 +19,8 @@ import {
   AlertCircle,
   Loader2,
   ShieldCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +62,8 @@ export default function MunicipalRequestAccessPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -122,10 +126,24 @@ export default function MunicipalRequestAccessPage() {
   return (
     <div className="min-h-screen bg-slate-50 py-12 sm:px-6 lg:px-8 dark:bg-slate-950">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl px-4">
-        {/* Header Bar */}
+        {/* Header Bar with Portal Context */}
         <div className="flex items-center justify-between mb-8">
-          <Logo href="/" size="md" />
-          <LanguageSwitcher />
+          <div className="flex items-center gap-3">
+            <Logo href="/" size="md" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>{language === "ar" ? "الفضاء البلدي" : "Espace Municipal"}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login?portal=municipal"
+              className="text-xs font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300 hover:underline"
+            >
+              {language === "ar" ? "تسجيل الدخول" : "Connexion"}
+            </Link>
+            <LanguageSwitcher />
+          </div>
         </div>
 
         {/* Card */}
@@ -195,24 +213,27 @@ export default function MunicipalRequestAccessPage() {
                         value={formData.fullName}
                         onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                         placeholder={language === "ar" ? "مثال: م. سميرة الطرابلسي" : "Ex: Ing. Samira Trabelsi"}
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label htmlFor="municipal-email" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                       {language === "ar" ? "البريد الإلكتروني المهني *" : "E-mail professionnel *"}
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 rtl:left-auto rtl:right-3" />
                       <input
+                        id="municipal-email"
+                        name="email"
                         type="email"
+                        autoComplete="email"
                         required
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         placeholder="agent@commune-tunis.gov.tn"
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
                       />
                     </div>
                   </div>
@@ -232,9 +253,10 @@ export default function MunicipalRequestAccessPage() {
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         placeholder="+216 71 345 678"
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
                       />
                     </div>
+                    <span className="block text-[10px] text-slate-400 mt-1">Ex: +216 71 345 678 ou +216 98 123 456</span>
                   </div>
 
                   <div>
@@ -244,7 +266,7 @@ export default function MunicipalRequestAccessPage() {
                     <select
                       value={formData.municipality}
                       onChange={(e) => setFormData({ ...formData, municipality: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     >
                       {MUNICIPALITIES.map((m) => (
                         <option key={m} value={m}>
@@ -264,7 +286,7 @@ export default function MunicipalRequestAccessPage() {
                     <select
                       value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     >
                       {DEPARTMENTS.map((d) => (
                         <option key={d} value={d}>
@@ -275,18 +297,21 @@ export default function MunicipalRequestAccessPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label htmlFor="municipal-job-title" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                       {language === "ar" ? "الخطة الوظيفية / المنصب *" : "Fonction / Poste occupé *"}
                     </label>
                     <div className="relative">
                       <Briefcase className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 rtl:left-auto rtl:right-3" />
                       <input
+                        id="municipal-job-title"
+                        name="jobTitle"
                         type="text"
+                        autoComplete="organization-title"
                         required
                         value={formData.jobTitle}
                         onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                         placeholder={language === "ar" ? "مثال: مهندس أول رئيس مصلحة" : "Ex: Ingénieur principal voirie"}
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
                       />
                     </div>
                   </div>
@@ -301,13 +326,21 @@ export default function MunicipalRequestAccessPage() {
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 rtl:left-auto rtl:right-3" />
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         required
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         placeholder="••••••••••••"
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-10 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-10 rtl:pr-9"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer rtl:right-auto rtl:left-3"
+                        title={showPassword ? "Masquer" : "Afficher"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -318,36 +351,46 @@ export default function MunicipalRequestAccessPage() {
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 rtl:left-auto rtl:right-3" />
                       <input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         required
                         value={formData.confirmPassword}
                         onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                         placeholder="••••••••••••"
-                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-10 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-10 rtl:pr-9"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer rtl:right-auto rtl:left-3"
+                        title={showConfirmPassword ? "Masquer" : "Afficher"}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Additional Notes */}
+                {/* Additional Notes without input icon collision */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {language === "ar" ? "ملاحظات أو مبررات الانضمام (اختياري)" : "Remarques complémentaires / Justificatif (optionnel)"}
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <span>
+                      {language === "ar"
+                        ? "ملاحظات أو مبررات الانضمام (اختياري)"
+                        : "Remarques complémentaires / Justificatif (optionnel)"}
+                    </span>
                   </label>
-                  <div className="relative">
-                    <FileText className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 rtl:left-auto rtl:right-3" />
-                    <textarea
-                      rows={2}
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      placeholder={
-                        language === "ar"
-                          ? "بيان المهام الميدانية أو الرقم التعريفي البلدي..."
-                          : "Numéro de matricule ou mission technique spécifique..."
-                      }
-                      className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-slate-900 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white rtl:pl-3 rtl:pr-9"
-                    />
-                  </div>
+                  <textarea
+                    rows={2}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder={
+                      language === "ar"
+                        ? "بيان المهام الميدانية أو الرقم التعريفي البلدي..."
+                        : "Numéro de matricule ou mission technique spécifique..."
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
                 </div>
 
                 {/* Submit button */}
